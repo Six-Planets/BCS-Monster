@@ -2,7 +2,9 @@ import React, { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef,
 import { BottomFloatingNav, NavDestination } from './components/layout/BottomFloatingNav';
 import type { ActiveView } from './components/screens/DestinationViews';
 import { LoginScreen } from './components/screens/LoginScreen';
-import { AuthUser, getStoredUser, logoutUser } from './auth';
+import { AuthUser, getStoredUser, logoutUser, subscribeUser } from './auth';
+import { flushAttempts } from './lib/api';
+import { UpdateBanner } from './components/common/UpdateBanner';
 import { getActiveView, navigate, useActiveView } from './router';
 import { prefetchBCSQuestionBank } from './data/questionBank';
 
@@ -24,6 +26,12 @@ export function App() {
   const isHome = view === 'home';
   const homeScroll = useRef(0);
   const prevView = useRef<ActiveView>(view);
+
+  // Keep in sync with the server session (expired / signed out elsewhere) and send any offline results.
+  useEffect(() => subscribeUser(setCurrentUser), []);
+  useEffect(() => {
+    if (currentUser) void flushAttempts();
+  }, [currentUser]);
 
   // Idle-prefetch the 3,080-question bank once signed in so Mock Test & Question Bank open instantly.
   useEffect(() => {
@@ -72,7 +80,12 @@ export function App() {
   }, []);
 
   if (!currentUser) {
-    return <LoginScreen onLoginSuccess={setCurrentUser} />;
+    return (
+      <>
+        <LoginScreen onLoginSuccess={setCurrentUser} />
+        <UpdateBanner />
+      </>
+    );
   }
 
   const activeNav: NavDestination =
@@ -115,6 +128,8 @@ export function App() {
       {isHome && (
         <BottomFloatingNav activeNav={activeNav} onSelectNav={handleSelectBottomNav} />
       )}
+
+      <UpdateBanner />
     </div>
   );
 }

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { recordAttempt } from '../../lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
@@ -411,6 +412,36 @@ export const MockTestArena: React.FC<MockTestArenaProps> = ({ onBackHome }) => {
       netScore
     };
   }, [answers, examQuestions]);
+
+  // Save every finished exam to the server (queued offline, sent when back online).
+  const savedRef = useRef(false);
+  useEffect(() => {
+    if (!isSubmitted) {
+      savedRef.current = false;
+      return;
+    }
+    if (savedRef.current || examStats.answeredCount === 0) return;
+    savedRef.current = true;
+    const subjects: Record<string, { correct: number; total: number }> = {};
+    examQuestions.forEach((q, i) => {
+      const key = q.subject || 'Other';
+      const row = (subjects[key] ??= { correct: 0, total: 0 });
+      row.total += 1;
+      if (answers[i + 1] === q.correctIndex) row.correct += 1;
+    });
+    const total = Math.max(examQuestions.length, examStats.answeredCount);
+    void recordAttempt({
+      mode: instantFeedbackMode ? 'practice' : 'mock',
+      total,
+      correct: examStats.correctCount,
+      wrong: examStats.wrongCount,
+      skipped: Math.max(0, total - examStats.answeredCount),
+      score: examStats.netScore,
+      duration_sec: BCS_PRELIM_DURATION_SECONDS - remainingSeconds,
+      subjects
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSubmitted]);
 
   const timerParts = splitTimerParts(remainingSeconds);
   const timeProgressPercent = (remainingSeconds / BCS_PRELIM_DURATION_SECONDS) * 100;

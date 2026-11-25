@@ -1,78 +1,68 @@
+import { Session, getSession, onSessionChange, signIn, signOut, signUp } from './lib/api';
+
 export interface AuthUser {
+  id: string;
   email: string;
   username: string;
   displayName: string;
 }
 
-const AUTH_STORAGE_KEY = 'bcs-monster-auth-user';
+const LEGACY_KEY = 'bcs-monster-auth-user';
 
-const VALID_CREDENTIALS: Record<string, string> = {
-  'user1@monster.com': 'user1',
-  'user2@monster.com': 'user2',
-  'user3@monster.com': 'user3',
-  'user4@monster.com': 'user4',
-  'user5@monster.com': 'user5',
-  'user6@monster.com': 'user6',
-  'user7@monster.com': 'user7',
-  'user8@monster.com': 'user8',
-  'user9@monster.com': 'user9',
-  'user10@monster.com': 'user10'
-};
+export function toAuthUser(s: Session | null): AuthUser | null {
+  if (!s?.user) return null;
+  const email = s.user.email ?? '';
+  const meta = (s.user.user_metadata ?? {}) as Record<string, unknown>;
+  const username = email.split('@')[0] || 'candidate';
+  const displayName = typeof meta.display_name === 'string' && meta.display_name.trim() ? meta.display_name.trim() : username;
+  return { id: s.user.id, email, username, displayName };
+}
 
 export function getStoredUser(): AuthUser | null {
-  if (typeof window === 'undefined') return null;
   try {
-    const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as AuthUser;
-    if (parsed && typeof parsed.email === 'string' && VALID_CREDENTIALS[parsed.email]) {
-      return parsed;
-    }
-    window.localStorage.removeItem(AUTH_STORAGE_KEY);
-    return null;
+    localStorage.removeItem(LEGACY_KEY); // old client-only login (pre server accounts)
   } catch {
-    return null;
+    /* ignore */
+  }
+  return toAuthUser(getSession());
+}
+
+export function subscribeUser(fn: (u: AuthUser | null) => void): () => void {
+  return onSessionChange((s) => fn(toAuthUser(s)));
+}
+
+type Result = { ok: true; user: AuthUser } | { ok: false; error: string };
+
+function validate(email: string, password: string): string | null {
+  if (!email.trim() || !password) return 'Please enter both email and password.';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return 'Please enter a valid email address.';
+  return null;
+}
+
+export async function loginWithCredentials(email: string, password: string): Promise<Result> {
+  const bad = validate(email, password);
+  if (bad) return { ok: false, error: bad };
+  try {
+    const s = await signIn(email, password);
+    return { ok: true, user: toAuthUser(s)! };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
   }
 }
 
-export function loginWithCredentials(
-  emailInput: string,
-  passwordInput: string
-): { ok: true; user: AuthUser } | { ok: false; error: string } {
-  const email = emailInput.trim().toLowerCase();
-  const password = passwordInput;
-
-  if (!email || !password) {
-    return { ok: false, error: 'Please enter both email and password.' };
-  }
-
-  const expectedPassword = VALID_CREDENTIALS[email];
-  if (!expectedPassword || expectedPassword !== password) {
-    return { ok: false, error: 'Invalid email or password.' };
-  }
-
-  const username = email.split('@')[0];
-  const userNumber = username.replace('user', '');
-  const user: AuthUser = {
-    email,
-    username,
-    displayName: `BCS Candidate #${userNumber}`
-  };
-
+export async function registerAccount(name: string, email: string, password: string): Promise<Result> {
+  const bad = validate(email, password);
+  if (bad) return { ok: false, error: bad };
+  if (name.trim().length < 2) return { ok: false, error: 'Please enter your name.' };
+  if (password.length < 6) return { ok: false, error: 'Password must be at least 6 characters.' };
   try {
-    window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-  } catch {
-    // Ignore storage quota errors
+    const s = await signUp(email, password, name);
+    return { ok: true, user: toAuthUser(s)! };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
   }
-
-  return { ok: true, user };
 }
 
 export function logoutUser(): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.removeItem(AUTH_STORAGE_KEY);
-  } catch {
-    // Ignore
-  }
+  void signOut();
 }

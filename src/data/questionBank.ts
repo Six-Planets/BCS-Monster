@@ -22,7 +22,16 @@ function resolveAssetUrl(path: string): string {
   return `./${cleanPath}`;
 }
 
-const DB_CACHE_NAME = 'bcs-monster-db-v1';
+import { APP_VERSION } from '../lib/updater';
+
+// One cache per release, so a re-deployed question bank is never served stale.
+const DB_CACHE_NAME = `bcs-monster-db-${APP_VERSION}`;
+if (typeof caches !== 'undefined') {
+  void caches
+    .keys()
+    .then((keys) => Promise.all(keys.filter((k) => k.startsWith('bcs-monster-db-') && k !== DB_CACHE_NAME).map((k) => caches.delete(k))))
+    .catch(() => undefined);
+}
 
 /**
  * Lazily fetches and caches the 3,080-question BCS Preliminary database.
