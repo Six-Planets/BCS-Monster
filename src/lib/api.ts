@@ -186,6 +186,64 @@ export async function changePassword(password: string): Promise<void> {
   await request('/auth/v1/user', { method: 'PUT', body: JSON.stringify({ password }) });
 }
 
+export async function recoverPassword(email: string): Promise<void> {
+  await request('/auth/v1/recover', {
+    method: 'POST',
+    auth: false,
+    body: JSON.stringify({ email: email.trim().toLowerCase() })
+  });
+}
+
+export async function getAuthSettings(): Promise<{ google: boolean; email: boolean }> {
+  try {
+    const res = await fetch(`${API_URL}/auth/v1/settings`);
+    if (!res.ok) return { google: false, email: true };
+    const data = (await res.json()) as { external?: { google?: boolean; email?: boolean } };
+    return {
+      google: Boolean(data?.external?.google),
+      email: data?.external?.email !== false
+    };
+  } catch {
+    return { google: false, email: true };
+  }
+}
+
+export function getGoogleOAuthUrl(): string {
+  const redirectTo = typeof window !== 'undefined' ? window.location.origin + window.location.pathname : '';
+  return `${API_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo)}`;
+}
+
+/** Handles OAuth / Password Recovery redirect tokens if present in URL hash. */
+export async function consumeAuthRedirectHash(): Promise<'recovery' | 'oauth' | null> {
+  if (typeof window === 'undefined') return null;
+  const hash = window.location.hash;
+  if (!hash || !hash.includes('access_token=')) return null;
+  const params = new URLSearchParams(hash.replace(/^#/, ''));
+  const accessToken = params.get('access_token');
+  const refreshToken = params.get('refresh_token') || '';
+  const expiresIn = Number(params.get('expires_in') || 3600);
+  const type = params.get('type');
+  if (!accessToken) return null;
+
+  try {
+    const res = await fetch(`${API_URL}/auth/v1/user`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!res.ok) return null;
+    const user = (await res.json()) as Session['user'];
+    writeSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      expires_at: Math.floor(Date.now() / 1000) + expiresIn,
+      user
+    });
+    window.history.replaceState(null, '', window.location.pathname + '#/');
+    return type === 'recovery' ? 'recovery' : 'oauth';
+  } catch {
+    return null;
+  }
+}
+
 /* ------------------------------------------------------------------ data */
 export interface Profile {
   id: string;

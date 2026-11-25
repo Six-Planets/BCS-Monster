@@ -1,4 +1,15 @@
-import { Session, getSession, onSessionChange, signIn, signOut, signUp } from './lib/api';
+import {
+  Session,
+  consumeAuthRedirectHash,
+  getAuthSettings,
+  getGoogleOAuthUrl,
+  getSession,
+  onSessionChange,
+  recoverPassword,
+  signIn,
+  signOut,
+  signUp
+} from './lib/api';
 
 export interface AuthUser {
   id: string;
@@ -62,6 +73,30 @@ export async function registerAccount(name: string, email: string, password: str
     return { ok: false, error: (e as Error).message };
   }
 }
+
+export async function sendPasswordReset(email: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const clean = email.trim();
+  if (!clean || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) {
+    return { ok: false, error: 'Please enter a valid email address.' };
+  }
+  try {
+    await recoverPassword(clean);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
+export async function isGoogleAuthEnabled(): Promise<boolean> {
+  const s = await getAuthSettings();
+  return s.google;
+}
+
+export function launchGoogleOAuth(): void {
+  window.location.href = getGoogleOAuthUrl();
+}
+
+export { consumeAuthRedirectHash };
 
 export function logoutUser(): void {
   void signOut();

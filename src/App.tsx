@@ -2,7 +2,7 @@ import React, { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef,
 import { BottomFloatingNav, NavDestination } from './components/layout/BottomFloatingNav';
 import type { ActiveView } from './components/screens/DestinationViews';
 import { LoginScreen } from './components/screens/LoginScreen';
-import { AuthUser, getStoredUser, logoutUser, subscribeUser } from './auth';
+import { AuthUser, consumeAuthRedirectHash, getStoredUser, logoutUser, subscribeUser } from './auth';
 import { flushAttempts } from './lib/api';
 import { UpdateBanner } from './components/common/UpdateBanner';
 import { getActiveView, navigate, useActiveView } from './router';
@@ -28,7 +28,13 @@ export function App() {
   const prevView = useRef<ActiveView>(view);
 
   // Keep in sync with the server session (expired / signed out elsewhere) and send any offline results.
-  useEffect(() => subscribeUser(setCurrentUser), []);
+  useEffect(() => {
+    const unsub = subscribeUser(setCurrentUser);
+    void consumeAuthRedirectHash().then((kind) => {
+      if (kind === 'recovery') navigate('settings');
+    });
+    return unsub;
+  }, []);
   useEffect(() => {
     if (currentUser) void flushAttempts();
   }, [currentUser]);
