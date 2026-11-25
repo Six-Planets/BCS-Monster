@@ -41,7 +41,7 @@ const BrandingBarBase: React.FC = () => {
                 by
               </span>
               <img
-                src="/Uttoron.png"
+                src="./Uttoron.png"
                 alt="Uttoron Logo"
                 width={57}
                 height={97}

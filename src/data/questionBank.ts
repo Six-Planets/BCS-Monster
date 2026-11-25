@@ -22,35 +22,61 @@ function resolveAssetUrl(path: string): string {
   return `./${cleanPath}`;
 }
 
+const DB_CACHE_NAME = 'bcs-monster-db-v1';
+
 /**
  * Lazily fetches and caches the 3,080-question BCS Preliminary database.
- * Uses an in-memory promise cache so repeated calls share one network request.
+ * Uses both in-memory promise caching and the browser Cache API so repeat
+ * visits load from disk in milliseconds instead of re-downloading 3.2 MB.
  */
 export function loadBCSQuestionBank(): Promise<BCSQuestionRecord[]> {
   if (cachedData) {
     return Promise.resolve(cachedData);
   }
   if (!cachedPromise) {
-    cachedPromise = fetch(resolveAssetUrl('data/bcs_questions.json'))
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`Failed to load BCS database (${res.status})`);
+    const url = resolveAssetUrl('data/bcs_questions.json');
+    cachedPromise = (async () => {
+      let response: Response | undefined;
+      if (typeof caches !== 'undefined') {
+        try {
+          const cache = await caches.open(DB_CACHE_NAME);
+          response = await cache.match(url);
+          if (!response) {
+            const netRes = await fetch(url);
+            if (!netRes.ok) {
+              throw new Error(`Failed to load BCS database (${netRes.status})`);
+            }
+            await cache.put(url, netRes.clone());
+            response = netRes;
+          }
+        } catch {
+          response = undefined;
         }
-        return res.json() as Promise<BCSQuestionRecord[]>;
-      })
-      .then((records) => {
-        cachedData = records.map((r) => ({
-          ...r,
-          image: r.image ? resolveAssetUrl(r.image) : null
-        }));
-        return cachedData;
-      })
-      .catch((err) => {
-        cachedPromise = null;
-        throw err;
-      });
+      }
+      if (!response) {
+        response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to load BCS database (${response.status})`);
+        }
+      }
+      const records = (await response.json()) as BCSQuestionRecord[];
+      cachedData = records.map((r) => ({
+        ...r,
+        image: r.image ? resolveAssetUrl(r.image) : null
+      }));
+      return cachedData;
+    })().catch((err) => {
+      cachedPromise = null;
+      throw err;
+    });
   }
   return cachedPromise;
+}
+
+export function prefetchBCSQuestionBank(): void {
+  void loadBCSQuestionBank().catch(() => {
+    // Ignore background prefetch failures
+  });
 }
 
 /**

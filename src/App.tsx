@@ -1,10 +1,17 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { BottomFloatingNav, NavDestination } from './components/layout/BottomFloatingNav';
-import { DestinationView, ActiveView } from './components/screens/DestinationViews';
-import { HomeScreen } from './components/screens/HomeScreen';
+import type { ActiveView } from './components/screens/DestinationViews';
 import { LoginScreen } from './components/screens/LoginScreen';
 import { AuthUser, getStoredUser, logoutUser } from './auth';
 import { getActiveView, navigate, useActiveView } from './router';
+import { prefetchBCSQuestionBank } from './data/questionBank';
+
+const HomeScreen = lazy(() =>
+  import('./components/screens/HomeScreen').then((m) => ({ default: m.HomeScreen }))
+);
+const DestinationView = lazy(() =>
+  import('./components/screens/DestinationViews').then((m) => ({ default: m.DestinationView }))
+);
 
 /**
  * App shell. Everything persistent (ambient background, bottom navigation, the home
@@ -17,6 +24,20 @@ export function App() {
   const isHome = view === 'home';
   const homeScroll = useRef(0);
   const prevView = useRef<ActiveView>(view);
+
+  // Idle-prefetch the 3,080-question bank once signed in so Mock Test & Question Bank open instantly.
+  useEffect(() => {
+    if (!currentUser) return;
+    const win = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+    };
+    if (typeof win.requestIdleCallback === 'function') {
+      win.requestIdleCallback(() => prefetchBCSQuestionBank(), { timeout: 2500 });
+    } else {
+      const t = window.setTimeout(() => prefetchBCSQuestionBank(), 1200);
+      return () => window.clearTimeout(t);
+    }
+  }, [currentUser]);
 
   // Remember the home scroll position without causing any React work.
   useEffect(() => {
@@ -65,21 +86,29 @@ export function App() {
       <div className="ambient-field" aria-hidden="true" />
 
       <main className="relative z-10 flex-1 w-full">
-        {/* Home stays mounted; display:none stops its animations and layout cost while hidden. */}
-        <div className={isHome ? 'screen-enter' : 'screen-hidden'}>
-          <HomeScreen onOpen={handleOpenDestination} />
-        </div>
-
-        {!isHome && (
-          <div key={view} className="screen-enter">
-            <DestinationView
-              view={view}
-              onBackHome={handleBackHome}
-              currentUser={currentUser}
-              onLogout={handleLogout}
-            />
+        <Suspense
+          fallback={
+            <div className="min-h-[60vh] flex items-center justify-center font-rounded font-bold text-sm theme-text-secondary">
+              Loading BCS Monster...
+            </div>
+          }
+        >
+          {/* Home stays mounted; display:none stops its animations and layout cost while hidden. */}
+          <div className={isHome ? 'screen-enter' : 'screen-hidden'}>
+            <HomeScreen onOpen={handleOpenDestination} />
           </div>
-        )}
+
+          {!isHome && (
+            <div key={view} className="screen-enter">
+              <DestinationView
+                view={view}
+                onBackHome={handleBackHome}
+                currentUser={currentUser}
+                onLogout={handleLogout}
+              />
+            </div>
+          )}
+        </Suspense>
       </main>
 
       {/* Homepage 5-item floating bottom navigation: visible ONLY on the homepage. */}
