@@ -1,0 +1,815 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root,
+  [data-theme="light"] {
+    --bg-base: #F6F2FF;
+    --bg-gradient:
+      radial-gradient(circle at 10% 8%, rgba(255, 166, 201, 0.58) 0%, transparent 38%),
+      radial-gradient(circle at 90% 10%, rgba(114, 221, 255, 0.62) 0%, transparent 40%),
+      radial-gradient(circle at 50% 38%, rgba(186, 164, 255, 0.48) 0%, transparent 48%),
+      radial-gradient(circle at 12% 76%, rgba(110, 242, 202, 0.55) 0%, transparent 42%),
+      radial-gradient(circle at 88% 82%, rgba(255, 188, 138, 0.60) 0%, transparent 44%),
+      linear-gradient(150deg, #FFF8FB 0%, #EFF6FF 34%, #F3E8FF 68%, #ECFDF5 100%);
+
+    --text-primary: #1A1648;
+    --text-secondary: #433E72;
+    --text-muted: #645F94;
+
+    /* 00A. Countdown Card (Indigo-Amber-Rose Aurora) */
+    --card-countdown-bg: linear-gradient(135deg, rgba(238, 232, 255, 0.88) 0%, rgba(255, 240, 247, 0.84) 52%, rgba(255, 247, 224, 0.88) 100%);
+    --card-countdown-border: rgba(139, 92, 246, 0.42);
+    --card-countdown-shadow:
+      0 22px 48px -12px rgba(109, 40, 217, 0.22),
+      0 8px 20px -6px rgba(245, 158, 11, 0.14),
+      inset 0 2px 3px 0 rgba(255, 255, 255, 0.98);
+
+    /* 00B. Branding Card (Prismatic Pearl Glass) */
+    --card-branding-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.88) 0%, rgba(245, 243, 255, 0.82) 55%, rgba(255, 247, 237, 0.88) 100%);
+    --card-branding-border: rgba(255, 255, 255, 0.95);
+    --card-branding-shadow:
+      0 18px 40px -10px rgba(79, 70, 229, 0.16),
+      inset 0 2px 3px 0 rgba(255, 255, 255, 1);
+
+    /* 01. Mock Test Hero (Vibrant Lavender-Rose-Violet Flagship) */
+    --card-mock-bg: linear-gradient(135deg, rgba(243, 232, 255, 0.88) 0%, rgba(253, 226, 243, 0.82) 52%, rgba(224, 242, 254, 0.88) 100%);
+    --card-mock-border: rgba(168, 85, 247, 0.45);
+    --card-mock-shadow:
+      0 28px 60px -14px rgba(124, 58, 237, 0.25),
+      0 12px 28px -8px rgba(236, 72, 153, 0.16),
+      inset 0 2px 4px 0 rgba(255, 255, 255, 0.98);
+
+    /* 02. Question Bank (Sky Blue & Turquoise Crystal) */
+    --card-qb-bg: linear-gradient(135deg, rgba(218, 244, 255, 0.88) 0%, rgba(232, 250, 255, 0.82) 55%, rgba(224, 231, 255, 0.88) 100%);
+    --card-qb-border: rgba(14, 165, 233, 0.45);
+    --card-qb-shadow:
+      0 20px 44px -12px rgba(2, 132, 199, 0.22),
+      inset 0 2px 3px 0 rgba(255, 255, 255, 0.96);
+
+    /* 03. Study Materials (Mint Emerald & Aqua Jade) */
+    --card-sm-bg: linear-gradient(135deg, rgba(209, 250, 229, 0.88) 0%, rgba(230, 255, 245, 0.82) 55%, rgba(204, 251, 241, 0.88) 100%);
+    --card-sm-border: rgba(16, 185, 129, 0.45);
+    --card-sm-shadow:
+      0 20px 44px -12px rgba(5, 150, 105, 0.22),
+      inset 0 2px 3px 0 rgba(255, 255, 255, 0.96);
+
+    /* 04. Private Tutor (Orchid Lavender & Fuchsia Amethyst) */
+    --card-pt-bg: linear-gradient(135deg, rgba(243, 226, 255, 0.88) 0%, rgba(250, 235, 255, 0.82) 55%, rgba(252, 225, 245, 0.88) 100%);
+    --card-pt-border: rgba(168, 85, 247, 0.45);
+    --card-pt-shadow:
+      0 20px 44px -12px rgba(147, 51, 234, 0.22),
+      inset 0 2px 3px 0 rgba(255, 255, 255, 0.96);
+
+    /* 05. BCS Updates (Warm Peach, Coral & Sunset Gold) */
+    --card-up-bg: linear-gradient(135deg, rgba(255, 234, 218, 0.90) 0%, rgba(255, 243, 226, 0.84) 55%, rgba(255, 226, 234, 0.88) 100%);
+    --card-up-border: rgba(249, 115, 22, 0.45);
+    --card-up-shadow:
+      0 20px 44px -12px rgba(234, 88, 12, 0.22),
+      inset 0 2px 3px 0 rgba(255, 255, 255, 0.96);
+
+    /* Bottom Navigation Dock */
+    --dock-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.88) 0%, rgba(246, 241, 255, 0.82) 100%);
+    --dock-border: rgba(255, 255, 255, 0.96);
+    --dock-shadow:
+      0 24px 55px -10px rgba(67, 56, 202, 0.28),
+      0 8px 22px -6px rgba(236, 72, 153, 0.16),
+      inset 0 2px 3px 0 rgba(255, 255, 255, 1);
+
+    /* Inner Sub-Cards */
+    --subcard-bg: rgba(255, 255, 255, 0.78);
+    --subcard-border: rgba(255, 255, 255, 0.95);
+  }
+
+  [data-theme="dark"] {
+    --bg-base: #0E0B20;
+    --bg-gradient:
+      radial-gradient(circle at 12% 8%, rgba(236, 72, 153, 0.28) 0%, transparent 40%),
+      radial-gradient(circle at 88% 12%, rgba(14, 165, 233, 0.30) 0%, transparent 42%),
+      radial-gradient(circle at 50% 42%, rgba(139, 92, 246, 0.26) 0%, transparent 50%),
+      radial-gradient(circle at 14% 78%, rgba(16, 185, 129, 0.26) 0%, transparent 44%),
+      radial-gradient(circle at 88% 84%, rgba(249, 115, 22, 0.26) 0%, transparent 44%),
+      linear-gradient(150deg, #0D0B1E 0%, #141132 38%, #1A133B 72%, #0F172E 100%);
+
+    --text-primary: #F8F7FF;
+    --text-secondary: #CBD5E1;
+    --text-muted: #94A3B8;
+
+    /* 00A. Countdown Card (Dark Mode) */
+    --card-countdown-bg: linear-gradient(135deg, rgba(49, 35, 96, 0.78) 0%, rgba(66, 29, 79, 0.72) 52%, rgba(68, 44, 28, 0.76) 100%);
+    --card-countdown-border: rgba(167, 139, 250, 0.45);
+    --card-countdown-shadow:
+      0 24px 55px -12px rgba(0, 0, 0, 0.65),
+      0 0 32px -8px rgba(139, 92, 246, 0.32),
+      inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.22);
+
+    /* 00B. Branding Card (Dark Mode) */
+    --card-branding-bg: linear-gradient(135deg, rgba(30, 27, 68, 0.82) 0%, rgba(42, 32, 82, 0.76) 55%, rgba(48, 30, 62, 0.80) 100%);
+    --card-branding-border: rgba(196, 181, 253, 0.32);
+    --card-branding-shadow:
+      0 20px 45px -10px rgba(0, 0, 0, 0.6),
+      inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.18);
+
+    /* 01. Mock Test Hero (Dark Mode) */
+    --card-mock-bg: linear-gradient(135deg, rgba(59, 33, 112, 0.82) 0%, rgba(83, 29, 89, 0.74) 52%, rgba(28, 56, 99, 0.82) 100%);
+    --card-mock-border: rgba(192, 132, 252, 0.50);
+    --card-mock-shadow:
+      0 28px 65px -12px rgba(0, 0, 0, 0.72),
+      0 0 40px -10px rgba(168, 85, 247, 0.38),
+      inset 0 2px 3px 0 rgba(255, 255, 255, 0.25);
+
+    /* 02. Question Bank (Dark Mode â€” Turquoise & Sky Blue) */
+    --card-qb-bg: linear-gradient(135deg, rgba(14, 58, 94, 0.82) 0%, rgba(19, 48, 89, 0.76) 55%, rgba(30, 41, 99, 0.82) 100%);
+    --card-qb-border: rgba(56, 189, 248, 0.50);
+    --card-qb-shadow:
+      0 22px 48px -12px rgba(0, 0, 0, 0.65),
+      0 0 28px -8px rgba(14, 165, 233, 0.32),
+      inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.22);
+
+    /* 03. Study Materials (Dark Mode â€” Emerald & Mint) */
+    --card-sm-bg: linear-gradient(135deg, rgba(12, 68, 58, 0.82) 0%, rgba(15, 56, 58, 0.76) 55%, rgba(17, 64, 74, 0.82) 100%);
+    --card-sm-border: rgba(52, 211, 153, 0.50);
+    --card-sm-shadow:
+      0 22px 48px -12px rgba(0, 0, 0, 0.65),
+      0 0 28px -8px rgba(16, 185, 129, 0.32),
+      inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.22);
+
+    /* 04. Private Tutor (Dark Mode â€” Amethyst & Orchid) */
+    --card-pt-bg: linear-gradient(135deg, rgba(64, 28, 99, 0.82) 0%, rgba(54, 27, 88, 0.76) 55%, rgba(79, 26, 78, 0.82) 100%);
+    --card-pt-border: rgba(192, 132, 252, 0.50);
+    --card-pt-shadow:
+      0 22px 48px -12px rgba(0, 0, 0, 0.65),
+      0 0 28px -8px rgba(168, 85, 247, 0.32),
+      inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.22);
+
+    /* 05. BCS Updates (Dark Mode â€” Warm Coral & Sunset Gold) */
+    --card-up-bg: linear-gradient(135deg, rgba(84, 36, 36, 0.82) 0%, rgba(76, 42, 26, 0.76) 55%, rgba(82, 28, 52, 0.82) 100%);
+    --card-up-border: rgba(251, 146, 60, 0.50);
+    --card-up-shadow:
+      0 22px 48px -12px rgba(0, 0, 0, 0.65),
+      0 0 28px -8px rgba(249, 115, 22, 0.32),
+      inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.22);
+
+    /* Bottom Navigation Dock (Dark Mode) */
+    --dock-bg: linear-gradient(135deg, rgba(22, 19, 52, 0.88) 0%, rgba(32, 24, 68, 0.84) 100%);
+    --dock-border: rgba(167, 139, 250, 0.38);
+    --dock-shadow:
+      0 24px 60px -8px rgba(0, 0, 0, 0.85),
+      0 0 35px -6px rgba(124, 58, 237, 0.32),
+      inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.22);
+
+    /* Inner Sub-Cards (Dark Mode) */
+    --subcard-bg: rgba(17, 14, 42, 0.68);
+    --subcard-border: rgba(255, 255, 255, 0.16);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: 'Plus Jakarta Sans', 'Hind Siliguri', sans-serif;
+    color: var(--text-primary);
+    background-color: var(--bg-base);
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    color: var(--text-primary);
+    overflow: visible;
+  }
+
+  /* Static, GPU-cached atmospheric backdrop: one fixed layer, never repainted on scroll. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: var(--bg-gradient);
+    transform: translateZ(0);
+  }
+}
+
+.font-rounded {
+  font-family: 'Fredoka', 'Plus Jakarta Sans', 'Hind Siliguri', sans-serif;
+}
+
+.font-bangla {
+  font-family: 'Hind Siliguri', 'Plus Jakarta Sans', sans-serif;
+}
+
+/* Theme-Aware Text Utilities */
+.theme-text-primary {
+  color: var(--text-primary);
+}
+
+.theme-text-secondary {
+  color: var(--text-secondary);
+}
+
+.theme-text-muted {
+  color: var(--text-muted);
+}
+
+.theme-subcard {
+  background: var(--subcard-bg);
+  border: 1.5px solid var(--subcard-border);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Distinctive Section Surfaces */
+.section-card-countdown {
+  background: var(--card-countdown-bg);
+  border: 1.5px solid var(--card-countdown-border);
+  box-shadow: var(--card-countdown-shadow);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+}
+
+.section-card-branding {
+  background: var(--card-branding-bg);
+  border: 1.5px solid var(--card-branding-border);
+  box-shadow: var(--card-branding-shadow);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+}
+
+.section-card-mock,
+.glass-hero-card {
+  background: var(--card-mock-bg);
+  border: 1.5px solid var(--card-mock-border);
+  box-shadow: var(--card-mock-shadow);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+}
+
+.section-card-qb {
+  background: var(--card-qb-bg);
+  border: 1.5px solid var(--card-qb-border);
+  box-shadow: var(--card-qb-shadow);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+}
+
+.section-card-sm {
+  background: var(--card-sm-bg);
+  border: 1.5px solid var(--card-sm-border);
+  box-shadow: var(--card-sm-shadow);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+}
+
+.section-card-pt {
+  background: var(--card-pt-bg);
+  border: 1.5px solid var(--card-pt-border);
+  box-shadow: var(--card-pt-shadow);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+}
+
+.section-card-up {
+  background: var(--card-up-bg);
+  border: 1.5px solid var(--card-up-border);
+  box-shadow: var(--card-up-shadow);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+}
+
+.glass-portal-card {
+  background: var(--card-branding-bg);
+  border: 1.5px solid var(--card-branding-border);
+  box-shadow: var(--card-branding-shadow);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+}
+
+.glass-bottom-dock {
+  background: var(--dock-bg);
+  border: 1.5px solid var(--dock-border);
+  box-shadow: var(--dock-shadow);
+  backdrop-filter: blur(26px) saturate(170%);
+  -webkit-backdrop-filter: blur(26px) saturate(170%);
+}
+
+/* 3D Perspective & Card Flip Utilities */
+.perspective-1400 {
+  perspective: 1400px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+.rotate-x-180 {
+  transform: rotateX(180deg);
+}
+
+/* 3D Glossy Pill Button */
+.btn-3d-start {
+  background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 48%, #EC4899 100%);
+  box-shadow:
+    0 14px 30px -6px rgba(139, 92, 246, 0.55),
+    0 4px 0 0 #4F46E5,
+    inset 0 2px 2px 0 rgba(255, 255, 255, 0.55);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+}
+
+.btn-3d-start:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow:
+    0 18px 36px -6px rgba(236, 72, 153, 0.58),
+    0 5px 0 0 #4F46E5,
+    inset 0 2px 3px 0 rgba(255, 255, 255, 0.7);
+}
+
+.btn-3d-start:active {
+  transform: translateY(2px);
+  box-shadow:
+    0 8px 18px -4px rgba(139, 92, 246, 0.45),
+    0 1px 0 0 #4F46E5,
+    inset 0 2px 2px 0 rgba(255, 255, 255, 0.5);
+}
+
+@keyframes float-gentle {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(1.2deg);
+  }
+}
+
+@keyframes float-reverse {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-7px) rotate(-1.4deg);
+  }
+}
+
+.animate-float-gentle {
+  animation: float-gentle 5.5s ease-in-out infinite;
+}
+
+.animate-float-reverse {
+  animation: float-reverse 6.5s ease-in-out infinite 0.8s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-float-gentle,
+  .animate-float-reverse {
+    animation: none !important;
+  }
+}
+
+/* ============================================================
+   PERFORMANCE LAYER
+   ============================================================ */
+
+/* Blur-free soft glow: a radial alpha mask replaces filter: blur() (static, rasterised once). */
+.glow-orb {
+  -webkit-mask-image: radial-gradient(closest-side, #000 0%, rgba(0, 0, 0, 0.55) 45%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 0%, rgba(0, 0, 0, 0.55) 45%, transparent 100%);
+}
+
+/* Fixed ambient colour field (replaces five 95px-blur blobs). One cached compositor layer. */
+.ambient-field {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  contain: strict;
+  transform: translateZ(0);
+  background:
+    radial-gradient(closest-side at 4% 0%, rgba(244, 114, 182, 0.34), transparent 100%) 0 0 / 70% 60% no-repeat,
+    radial-gradient(closest-side at 100% 4%, rgba(56, 189, 248, 0.34), transparent 100%) 100% 0 / 65% 60% no-repeat,
+    radial-gradient(closest-side at 0% 100%, rgba(52, 211, 153, 0.34), transparent 100%) 0 100% / 65% 60% no-repeat,
+    radial-gradient(closest-side at 100% 100%, rgba(251, 146, 60, 0.34), transparent 100%) 100% 100% / 65% 60% no-repeat,
+    radial-gradient(closest-side at 50% 50%, rgba(167, 139, 250, 0.22), transparent 100%) 50% 50% / 70% 60% no-repeat;
+}
+
+[data-theme='dark'] .ambient-field {
+  opacity: 0.8;
+}
+
+/* Cards: CSS-only lift (compositor transform) instead of JS-driven hover. */
+.card-lift {
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  contain: layout paint;
+  backface-visibility: hidden;
+}
+
+@media (hover: hover) {
+  .card-lift:hover {
+    transform: translate3d(0, -4px, 0);
+  }
+}
+
+.card-lift:active {
+  transform: translate3d(0, 0, 0) scale(0.99);
+}
+
+/* Float animations: promoted only while running, paused when off-screen / tab hidden. */
+.animate-float-gentle,
+.animate-float-reverse {
+  will-change: transform;
+}
+
+.is-paused,
+.is-paused * {
+  animation-play-state: paused !important;
+}
+
+html[data-tab='hidden'] *,
+html[data-tab='hidden'] *::before,
+html[data-tab='hidden'] *::after {
+  animation-play-state: paused !important;
+}
+
+/* Skip layout/paint for the inactive home screen. */
+.screen-hidden {
+  display: none !important;
+}
+
+/* Screen enter transition: smooth opacity crossfade (zero vertical shift or scroll displacement). */
+@keyframes screen-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.screen-enter {
+  animation: screen-enter 0.18s ease-out both;
+}
+
+/* Smooth theme crossfade via the View Transitions API (compositor-only). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.3s;
+  animation-timing-function: ease;
+}
+
+/* Smooth surface transitions during explicit user theme toggle.
+   Avoid disruptive transitions on text, fonts, and gradient-clipped elements
+   which cause font antialiasing jumps, muddy midtones, and visible blinking. */
+html.theme-switching,
+html.theme-switching body,
+html.theme-switching main,
+html.theme-switching section,
+html.theme-switching nav,
+html.theme-switching header,
+html.theme-switching .section-card-countdown,
+html.theme-switching .section-card-branding,
+html.theme-switching .section-card-mock,
+html.theme-switching .section-card-qb,
+html.theme-switching .section-card-sm,
+html.theme-switching .section-card-pt,
+html.theme-switching .section-card-bu,
+html.theme-switching .theme-subcard,
+html.theme-switching .glass-hero-card {
+  transition-property: background-color, border-color, box-shadow !important;
+  transition-duration: 0.3s !important;
+  transition-timing-function: ease !important;
+}
+
+/* Explicitly protect all text and font elements from flickering or antialiasing jumps */
+html.theme-switching p,
+html.theme-switching span,
+html.theme-switching h1,
+html.theme-switching h2,
+html.theme-switching h3,
+html.theme-switching h4,
+html.theme-switching h5,
+html.theme-switching h6,
+html.theme-switching a,
+html.theme-switching label,
+html.theme-switching [class*="bg-clip-text"],
+html.theme-switching [class*="text-transparent"] {
+  transition-property: none !important;
+}
+
+/* Low-power devices: keep the colours/gloss, drop live backdrop blur. */
+html[data-perf='lite'] .section-card-countdown,
+html[data-perf='lite'] .section-card-branding,
+html[data-perf='lite'] .section-card-mock,
+html[data-perf='lite'] .glass-hero-card,
+html[data-perf='lite'] .section-card-qb,
+html[data-perf='lite'] .section-card-sm,
+html[data-perf='lite'] .section-card-pt,
+html[data-perf='lite'] .section-card-up,
+html[data-perf='lite'] .glass-portal-card,
+html[data-perf='lite'] .theme-subcard {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html[data-perf='lite'] .glass-bottom-dock {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+@media (max-width: 640px) {
+  .section-card-countdown,
+  .section-card-branding,
+  .section-card-mock,
+  .section-card-qb,
+  .section-card-sm,
+  .section-card-pt,
+  .section-card-up {
+    backdrop-filter: blur(10px) saturate(140%);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+@keyframes digit-pop {
+  from { transform: translate3d(0, 55%, 0); opacity: 0; }
+  to { transform: translate3d(0, 0, 0); opacity: 1; }
+}
+.digit-pop {
+  display: inline-block;
+  animation: digit-pop 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ============================================================================
+   MOCK TEST CRYSTAL & 3D GAME-BUTTON DESIGN SYSTEM
+   ============================================================================ */
+
+/* 1. Crystal Chronometer (Timer) */
+.crystal-timer-shell {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(238, 242, 255, 0.88) 50%, rgba(245, 243, 255, 0.92) 100%);
+  border: 1.5px solid rgba(139, 92, 246, 0.35);
+  box-shadow:
+    0 10px 26px -6px rgba(99, 102, 241, 0.22),
+    0 3px 0 rgba(124, 58, 237, 0.18),
+    inset 0 2px 1px rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+}
+
+html[data-theme='dark'] .crystal-timer-shell {
+  background: linear-gradient(135deg, rgba(30, 25, 68, 0.92) 0%, rgba(46, 32, 96, 0.88) 50%, rgba(23, 20, 52, 0.94) 100%);
+  border: 1.5px solid rgba(167, 139, 250, 0.42);
+  box-shadow:
+    0 12px 30px -6px rgba(0, 0, 0, 0.65),
+    0 0 22px -4px rgba(139, 92, 246, 0.35),
+    0 3px 0 rgba(91, 33, 182, 0.65),
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.25);
+}
+
+.crystal-timer-cell {
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.2) 100%);
+  border: 1px solid rgba(139, 92, 246, 0.28);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8);
+}
+
+html[data-theme='dark'] .crystal-timer-cell {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(139, 92, 246, 0.18) 100%);
+  border: 1px solid rgba(196, 181, 253, 0.28);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.2);
+}
+
+/* 2. Separate Crystal Metadata Panel */
+.crystal-meta-panel {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.86) 0%, rgba(243, 238, 255, 0.82) 100%);
+  border: 1.5px solid rgba(167, 139, 250, 0.35);
+  box-shadow:
+    0 8px 22px -8px rgba(99, 102, 241, 0.15),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+html[data-theme='dark'] .crystal-meta-panel {
+  background: linear-gradient(135deg, rgba(32, 26, 70, 0.84) 0%, rgba(22, 18, 50, 0.88) 100%);
+  border: 1.5px solid rgba(139, 92, 246, 0.32);
+  box-shadow:
+    0 10px 26px -8px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+/* 3. Dedicated Crystal Question Stage */
+.crystal-question-stage {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.96) 0%, rgba(250, 247, 255, 0.92) 55%, rgba(240, 249, 255, 0.94) 100%);
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  box-shadow:
+    0 20px 44px -14px rgba(99, 102, 241, 0.22),
+    0 6px 0 rgba(167, 139, 250, 0.25),
+    inset 0 2px 3px rgba(255, 255, 255, 1),
+    inset 0 -2px 6px rgba(139, 92, 246, 0.08);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+}
+
+html[data-theme='dark'] .crystal-question-stage {
+  background: linear-gradient(145deg, rgba(38, 30, 82, 0.94) 0%, rgba(26, 21, 60, 0.94) 55%, rgba(20, 28, 66, 0.94) 100%);
+  border: 1.5px solid rgba(167, 139, 250, 0.38);
+  box-shadow:
+    0 22px 48px -12px rgba(0, 0, 0, 0.72),
+    0 6px 0 rgba(76, 29, 149, 0.55),
+    0 0 32px -8px rgba(139, 92, 246, 0.28),
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.25);
+}
+
+/* 4. Four Glossy Crystal 3D Answer Option Cards */
+.crystal-opt-base {
+  position: relative;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease, border-color 0.18s ease;
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+}
+
+.crystal-opt-base:hover {
+  transform: translate3d(0, -2px, 0);
+}
+
+.crystal-opt-base:active,
+.crystal-opt-base[data-selected='true'] {
+  transform: translate3d(0, 3px, 0);
+}
+
+/* Option 1 (ক): Amethyst Violet Crystal */
+.crystal-opt-violet {
+  background: linear-gradient(145deg, rgba(245, 240, 255, 0.96) 0%, rgba(233, 213, 255, 0.9) 55%, rgba(221, 214, 254, 0.94) 100%);
+  border: 2px solid rgba(139, 92, 246, 0.45);
+  box-shadow:
+    0 6px 0 rgba(109, 40, 217, 0.35),
+    0 14px 28px -8px rgba(124, 58, 237, 0.28),
+    inset 0 2px 2px rgba(255, 255, 255, 0.95);
+  color: #2e1065;
+}
+.crystal-opt-violet[data-selected='true'] {
+  background: linear-gradient(145deg, rgba(237, 233, 254, 1) 0%, rgba(196, 181, 253, 0.96) 100%);
+  border-color: #6d28d9;
+  box-shadow:
+    0 2px 0 rgba(109, 40, 217, 0.65),
+    0 0 0 3px rgba(139, 92, 246, 0.35),
+    0 8px 20px -4px rgba(124, 58, 237, 0.4),
+    inset 0 2px 2px rgba(255, 255, 255, 1);
+}
+html[data-theme='dark'] .crystal-opt-violet {
+  background: linear-gradient(145deg, rgba(91, 33, 182, 0.52) 0%, rgba(76, 29, 149, 0.64) 55%, rgba(46, 16, 101, 0.78) 100%);
+  border: 2px solid rgba(167, 139, 250, 0.48);
+  box-shadow:
+    0 6px 0 rgba(59, 7, 100, 0.92),
+    0 14px 28px -8px rgba(109, 40, 217, 0.45),
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.32);
+  color: #f5f3ff;
+}
+html[data-theme='dark'] .crystal-opt-violet[data-selected='true'] {
+  background: linear-gradient(145deg, rgba(124, 58, 237, 0.72) 0%, rgba(91, 33, 182, 0.82) 100%);
+  border-color: #ddd6fe;
+  box-shadow:
+    0 2px 0 rgba(59, 7, 100, 0.95),
+    0 0 0 3px rgba(167, 139, 250, 0.55),
+    0 0 24px -2px rgba(139, 92, 246, 0.65),
+    inset 0 2px 2px rgba(255, 255, 255, 0.45);
+}
+
+/* Option 2 (খ): Aquamarine Cyan-Turquoise Crystal */
+.crystal-opt-cyan {
+  background: linear-gradient(145deg, rgba(236, 254, 255, 0.96) 0%, rgba(207, 250, 254, 0.9) 55%, rgba(165, 243, 252, 0.94) 100%);
+  border: 2px solid rgba(6, 182, 212, 0.48);
+  box-shadow:
+    0 6px 0 rgba(14, 116, 144, 0.35),
+    0 14px 28px -8px rgba(8, 145, 178, 0.26),
+    inset 0 2px 2px rgba(255, 255, 255, 0.95);
+  color: #083344;
+}
+.crystal-opt-cyan[data-selected='true'] {
+  background: linear-gradient(145deg, rgba(207, 250, 254, 1) 0%, rgba(103, 232, 249, 0.92) 100%);
+  border-color: #0e7490;
+  box-shadow:
+    0 2px 0 rgba(14, 116, 144, 0.65),
+    0 0 0 3px rgba(6, 182, 212, 0.35),
+    0 8px 20px -4px rgba(8, 145, 178, 0.38),
+    inset 0 2px 2px rgba(255, 255, 255, 1);
+}
+html[data-theme='dark'] .crystal-opt-cyan {
+  background: linear-gradient(145deg, rgba(14, 116, 144, 0.52) 0%, rgba(21, 94, 117, 0.64) 55%, rgba(8, 51, 68, 0.78) 100%);
+  border: 2px solid rgba(34, 211, 238, 0.48);
+  box-shadow:
+    0 6px 0 rgba(8, 51, 68, 0.92),
+    0 14px 28px -8px rgba(8, 145, 178, 0.45),
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.32);
+  color: #ecfeff;
+}
+html[data-theme='dark'] .crystal-opt-cyan[data-selected='true'] {
+  background: linear-gradient(145deg, rgba(8, 145, 178, 0.74) 0%, rgba(14, 116, 144, 0.84) 100%);
+  border-color: #a5f3fc;
+  box-shadow:
+    0 2px 0 rgba(8, 51, 68, 0.95),
+    0 0 0 3px rgba(34, 211, 238, 0.55),
+    0 0 24px -2px rgba(6, 182, 212, 0.65),
+    inset 0 2px 2px rgba(255, 255, 255, 0.45);
+}
+
+/* Option 3 (গ): Topaz Amber-Coral Crystal */
+.crystal-opt-amber {
+  background: linear-gradient(145deg, rgba(255, 251, 235, 0.96) 0%, rgba(254, 243, 199, 0.92) 55%, rgba(254, 215, 170, 0.94) 100%);
+  border: 2px solid rgba(245, 158, 11, 0.48);
+  box-shadow:
+    0 6px 0 rgba(180, 83, 9, 0.35),
+    0 14px 28px -8px rgba(217, 119, 6, 0.26),
+    inset 0 2px 2px rgba(255, 255, 255, 0.95);
+  color: #451a03;
+}
+.crystal-opt-amber[data-selected='true'] {
+  background: linear-gradient(145deg, rgba(254, 243, 199, 1) 0%, rgba(253, 186, 116, 0.94) 100%);
+  border-color: #b45309;
+  box-shadow:
+    0 2px 0 rgba(180, 83, 9, 0.65),
+    0 0 0 3px rgba(245, 158, 11, 0.35),
+    0 8px 20px -4px rgba(217, 119, 6, 0.38),
+    inset 0 2px 2px rgba(255, 255, 255, 1);
+}
+html[data-theme='dark'] .crystal-opt-amber {
+  background: linear-gradient(145deg, rgba(180, 83, 9, 0.52) 0%, rgba(146, 64, 14, 0.64) 55%, rgba(69, 26, 3, 0.78) 100%);
+  border: 2px solid rgba(251, 191, 36, 0.48);
+  box-shadow:
+    0 6px 0 rgba(69, 26, 3, 0.92),
+    0 14px 28px -8px rgba(217, 119, 6, 0.42),
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.32);
+  color: #fffbeb;
+}
+html[data-theme='dark'] .crystal-opt-amber[data-selected='true'] {
+  background: linear-gradient(145deg, rgba(217, 119, 6, 0.74) 0%, rgba(180, 83, 9, 0.84) 100%);
+  border-color: #fde68a;
+  box-shadow:
+    0 2px 0 rgba(69, 26, 3, 0.95),
+    0 0 0 3px rgba(251, 191, 36, 0.55),
+    0 0 24px -2px rgba(245, 158, 11, 0.65),
+    inset 0 2px 2px rgba(255, 255, 255, 0.45);
+}
+
+/* Option 4 (ঘ): Rose Quartz Crystal */
+.crystal-opt-rose {
+  background: linear-gradient(145deg, rgba(253, 242, 248, 0.96) 0%, rgba(252, 231, 243, 0.92) 55%, rgba(254, 205, 211, 0.94) 100%);
+  border: 2px solid rgba(236, 72, 153, 0.45);
+  box-shadow:
+    0 6px 0 rgba(190, 24, 93, 0.35),
+    0 14px 28px -8px rgba(225, 29, 72, 0.25),
+    inset 0 2px 2px rgba(255, 255, 255, 0.95);
+  color: #500724;
+}
+.crystal-opt-rose[data-selected='true'] {
+  background: linear-gradient(145deg, rgba(252, 231, 243, 1) 0%, rgba(249, 168, 212, 0.94) 100%);
+  border-color: #be185d;
+  box-shadow:
+    0 2px 0 rgba(190, 24, 93, 0.65),
+    0 0 0 3px rgba(236, 72, 153, 0.35),
+    0 8px 20px -4px rgba(225, 29, 72, 0.38),
+    inset 0 2px 2px rgba(255, 255, 255, 1);
+}
+html[data-theme='dark'] .crystal-opt-rose {
+  background: linear-gradient(145deg, rgba(190, 24, 93, 0.52) 0%, rgba(159, 18, 57, 0.64) 55%, rgba(76, 5, 25, 0.78) 100%);
+  border: 2px solid rgba(244, 114, 182, 0.48);
+  box-shadow:
+    0 6px 0 rgba(76, 5, 25, 0.92),
+    0 14px 28px -8px rgba(225, 29, 72, 0.42),
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.32);
+  color: #fdf2f8;
+}
+html[data-theme='dark'] .crystal-opt-rose[data-selected='true'] {
+  background: linear-gradient(145deg, rgba(225, 29, 72, 0.74) 0%, rgba(190, 24, 93, 0.84) 100%);
+  border-color: #fbcfe8;
+  box-shadow:
+    0 2px 0 rgba(76, 5, 25, 0.95),
+    0 0 0 3px rgba(244, 114, 182, 0.55),
+    0 0 24px -2px rgba(236, 72, 153, 0.65),
+    inset 0 2px 2px rgba(255, 255, 255, 0.45);
+}
