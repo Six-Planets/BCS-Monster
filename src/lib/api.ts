@@ -4,6 +4,7 @@
  * Sessions are kept in localStorage and refreshed automatically.
  */
 const ENV_URL = (import.meta.env.VITE_API_URL as string | undefined) || '';
+const ENV_GOOGLE_CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) || '';
 const DEFAULT_URL = 'https://bcs.5-223-93-53.sslip.io';
 
 /** Same-origin when served from our server; absolute URL in dev / inside the APK fallback. */
@@ -66,8 +67,15 @@ export function getSession(): Session | null {
 function friendly(msg: string, status: number): string {
   const m = msg.toLowerCase();
   if (m.includes('invalid login') || m.includes('invalid_grant') || m.includes('invalid credentials')) return 'Invalid email or password.';
+  if (m.includes('email not confirmed')) return 'Please verify your email with the 6-digit code sent to your inbox.';
+  if (m.includes('token has expired') || m.includes('otp_expired') || m.includes('invalid otp') || m.includes('invalid token')) {
+    return 'Invalid or expired verification code. Please check the code or request a new one.';
+  }
   if (m.includes('already registered') || m.includes('already been registered') || m.includes('user_already_exists')) return 'This email already has an account. Please sign in.';
   if (m.includes('password should be') || m.includes('weak_password')) return 'Password must be at least 6 characters.';
+  if (m.includes('error sending') || m.includes('smtp') || m.includes('dial tcp')) {
+    return 'Email delivery server (SMTP) is not configured yet. Please contact the admin to connect SMTP.';
+  }
   if (m.includes('rate limit') || status === 429) return 'Too many attempts. Please wait a minute and try again.';
   if (m.includes('email') && m.includes('invalid')) return 'Please enter a valid email address.';
   return msg || 'Something went wrong. Please try again.';
@@ -105,7 +113,15 @@ function safeJson(t: string): unknown {
   }
 }
 
-function toSession(r: { access_token: string; refresh_token: string; expires_in: number; expires_at?: number; user: Session['user'] }): Session {
+type RawSession = {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  expires_at?: number;
+  user: Session['user'];
+};
+
+function toSession(r: RawSession): Session {
   return {
     access_token: r.access_token,
     refresh_token: r.refresh_token,
@@ -122,7 +138,7 @@ export async function validSession(): Promise<Session | null> {
   if (!s) return null;
   if (s.expires_at - 60 > Date.now() / 1000) return s;
   if (!refreshing) {
-    refreshing = request<Parameters<typeof toSession>[0]>('/auth/v1/token?grant_type=refresh_token', {
+    refreshing = request<RawSession>('/auth/v1/token?grant_type=refresh_token', {
       method: 'POST',
       auth: false,
       body: JSON.stringify({ refresh_token: s.refresh_token })
@@ -145,7 +161,7 @@ export async function validSession(): Promise<Session | null> {
 }
 
 export async function signIn(email: string, password: string): Promise<Session> {
-  const r = await request<Parameters<typeof toSession>[0]>('/auth/v1/token?grant_type=password', {
+  const r = await request<RawSession>('/auth/v1/token?grant_type=password', {
     method: 'POST',
     auth: false,
     body: JSON.stringify({ email: email.trim().toLowerCase(), password })
@@ -155,19 +171,76 @@ export async function signIn(email: string, password: string): Promise<Session> 
   return s;
 }
 
-export async function signUp(email: string, password: string, displayName: string): Promise<Session> {
-  const r = await request<Partial<Parameters<typeof toSession>[0]>>('/auth/v1/signup', {
+export interface SignUpOutcome {
+  session: Session | null;
+  needsVerification: boolean;
+  email: string;
+}
+
+export async function signUp(email: string, password: string, displayName: string): Promise<SignUpOutcome> {
+  const cleanEmail = email.trim().toLowerCase();
+  const r = await request<Partial<RawSession> & { id?: string; email?: string; confirmation_sent_at?: string }>(
+    '/auth/v1/signup',
+    {
+      method: 'POST',
+      auth: false,
+      body: JSON.stringify({
+        email: cleanEmail,
+        password,
+        data: { display_name: displayName.trim() }
+      })
+    }
+  );
+  if (r.access_token && r.refresh_token && r.user) {
+    const s = toSession(r as RawSession);
+    writeSession(s);
+    return { session: s, needsVerification: false, email: cleanEmail };
+  }
+  // GoTrue requires email OTP verification before creating a session.
+  return { session: null, needsVerification: true, email: cleanEmail };
+}
+
+export async function verifyEmailOtp(
+  email: string,
+  token: string,
+  type: 'signup' | 'recovery' | 'email'
+): Promise<Session> {
+  const r = await request<RawSession>('/auth/v1/verify', {
     method: 'POST',
     auth: false,
-    body: JSON.stringify({ email: email.trim().toLowerCase(), password, data: { display_name: displayName.trim() } })
+    body: JSON.stringify({
+      email: email.trim().toLowerCase(),
+      token: token.trim(),
+      type
+    })
   });
-  if (r.access_token && r.refresh_token && r.user) {
-    const s = toSession(r as Parameters<typeof toSession>[0]);
-    writeSession(s);
-    return s;
-  }
-  // Auto-confirm is on, but fall back to a normal sign-in just in case.
-  return signIn(email, password);
+  const s = toSession(r);
+  writeSession(s);
+  return s;
+}
+
+export async function resendOtp(email: string, type: 'signup' = 'signup'): Promise<void> {
+  await request('/auth/v1/resend', {
+    method: 'POST',
+    auth: false,
+    body: JSON.stringify({ email: email.trim().toLowerCase(), type })
+  });
+}
+
+export async function signInWithGoogleIdToken(idToken: string, nonce?: string): Promise<Session> {
+  const payload: Record<string, string> = {
+    provider: 'google',
+    id_token: idToken
+  };
+  if (nonce) payload.nonce = nonce;
+  const r = await request<RawSession>('/auth/v1/token?grant_type=id_token', {
+    method: 'POST',
+    auth: false,
+    body: JSON.stringify(payload)
+  });
+  const s = toSession(r);
+  writeSession(s);
+  return s;
 }
 
 export async function signOut(): Promise<void> {
@@ -194,18 +267,47 @@ export async function recoverPassword(email: string): Promise<void> {
   });
 }
 
-export async function getAuthSettings(): Promise<{ google: boolean; email: boolean }> {
+export interface AuthServerSettings {
+  google: boolean;
+  email: boolean;
+  mailerAutoconfirm: boolean;
+  googleClientId: string;
+}
+
+export async function getAuthSettings(): Promise<AuthServerSettings> {
+  let google = false;
+  let email = true;
+  let mailerAutoconfirm = true;
+  let googleClientId = ENV_GOOGLE_CLIENT_ID.trim();
+
   try {
-    const res = await fetch(`${API_URL}/auth/v1/settings`);
-    if (!res.ok) return { google: false, email: true };
-    const data = (await res.json()) as { external?: { google?: boolean; email?: boolean } };
-    return {
-      google: Boolean(data?.external?.google),
-      email: data?.external?.email !== false
-    };
+    const res = await fetch(`${API_URL}/auth/v1/settings`, { cache: 'no-store' });
+    if (res.ok) {
+      const data = (await res.json()) as {
+        external?: { google?: boolean; email?: boolean };
+        mailer_autoconfirm?: boolean;
+      };
+      google = Boolean(data?.external?.google);
+      email = data?.external?.email !== false;
+      mailerAutoconfirm = data?.mailer_autoconfirm !== false;
+    }
   } catch {
-    return { google: false, email: true };
+    /* keep defaults */
   }
+
+  if (!googleClientId) {
+    try {
+      const cfgRes = await fetch(`./auth-config.json?t=${Date.now()}`, { cache: 'no-store' });
+      if (cfgRes.ok) {
+        const cfg = (await cfgRes.json()) as { googleClientId?: string };
+        if (cfg.googleClientId) googleClientId = cfg.googleClientId.trim();
+      }
+    } catch {
+      /* optional runtime config */
+    }
+  }
+
+  return { google, email, mailerAutoconfirm, googleClientId };
 }
 
 export function getGoogleOAuthUrl(): string {

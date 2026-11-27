@@ -14,7 +14,7 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   const url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== location.origin) return;
-  if (url.pathname.startsWith('/auth/') || url.pathname.startsWith('/rest/') || url.pathname.endsWith('/version.json')) return;
+  if (url.pathname.startsWith('/auth/') || url.pathname.startsWith('/rest/') || url.pathname.endsWith('/version.json') || url.pathname.endsWith('/auth-config.json')) return;
   if (url.pathname.includes('/data/')) return; // question bank has its own versioned cache
   if (req.mode === 'navigate') {
     e.respondWith(
