@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 
 export type NavDestination = 'arena' | 'progress' | 'profile' | 'settings' | 'leaderboard';
 
@@ -246,31 +245,26 @@ const BottomFloatingNavBase: React.FC<BottomFloatingNavProps> = ({
         {items.map((item) => {
           const isActive = activeNav === item.id;
           return (
-            <motion.button
+            <button
               key={item.id}
-              whileHover={{ y: -2 }}
-              whileTap={{ scale: 0.94 }}
+              type="button"
               onClick={() => onSelectNav(item.id)}
-              className={`relative flex-1 py-2 sm:py-2.5 px-1 sm:px-3.5 rounded-[1.75rem] flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 transition-colors duration-300 cursor-pointer select-none ${
+              className={`relative flex-1 py-2 sm:py-2.5 px-1 sm:px-3.5 rounded-[1.75rem] flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 transition-all duration-200 hover:-translate-y-0.5 active:scale-95 cursor-pointer select-none ${
                 isActive
                   ? `${item.activeTextClass} font-bold`
                   : 'theme-text-secondary hover:theme-text-primary font-semibold'
               }`}
             >
-              {/* Animated Floating Glass Active Pill */}
+              {/* Floating Glass Active Pill */}
               {isActive && (
-                <motion.div
-                  layoutId="bottom-nav-pill"
-                  transition={{ type: 'spring', stiffness: 360, damping: 28 }}
-                  className={`absolute inset-0 rounded-[1.75rem] bg-gradient-to-br border ${item.activePillClass}`}
+                <div
+                  className={`absolute inset-0 rounded-[1.75rem] bg-gradient-to-br border transition-opacity duration-200 ${item.activePillClass}`}
                 />
               )}
 
               {/* Subtle Illuminated Top Beam on Active Item */}
               {isActive && (
-                <motion.span
-                  layoutId="bottom-nav-top-dot"
-                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                <span
                   className="absolute -top-0.5 w-6 h-1 rounded-full"
                   style={{
                     backgroundColor: item.topGlowColor,
@@ -279,21 +273,18 @@ const BottomFloatingNavBase: React.FC<BottomFloatingNavProps> = ({
                 />
               )}
 
-              <motion.span
-                animate={{
-                  scale: isActive ? 1.12 : 1,
-                  y: isActive ? -1 : 0
-                }}
-                transition={{ type: 'spring', stiffness: 360, damping: 22 }}
-                className="relative z-10"
+              <span
+                className={`relative z-10 transition-transform duration-200 ${
+                  isActive ? 'scale-110 -translate-y-0.5' : 'scale-100'
+                }`}
               >
                 {item.renderIcon(isActive)}
-              </motion.span>
+              </span>
 
               <span className="relative z-10 text-[10px] sm:text-xs font-rounded tracking-tight leading-none">
                 {item.label}
               </span>
-            </motion.button>
+            </button>
           );
         })}
       </nav>

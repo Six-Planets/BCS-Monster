@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { Sparkles } from 'lucide-react';
 import { useTheme, toggleTheme } from '../../theme';
 
@@ -56,16 +55,14 @@ const BrandingBarBase: React.FC = () => {
         </div>
 
         {/* RIGHT: Functional, Glossy 3D Dark / Light Sliding Toggle Switch */}
-        <motion.button
+        <button
           type="button"
           role="switch"
           aria-checked={isDark}
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.96 }}
           onClick={onToggleTheme}
           aria-label={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          className="theme-toggle-btn relative inline-flex items-center gap-2 sm:gap-2.5 p-1 pr-2.5 sm:p-1.5 sm:pr-3 rounded-full theme-subcard shadow-[0_4px_16px_-4px_rgba(99,102,241,0.22)] cursor-pointer select-none shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+          className="theme-toggle-btn relative inline-flex items-center gap-2 sm:gap-2.5 p-1 pr-2.5 sm:p-1.5 sm:pr-3 rounded-full theme-subcard shadow-[0_4px_16px_-4px_rgba(99,102,241,0.22)] hover:scale-[1.03] active:scale-[0.96] transition-transform cursor-pointer select-none shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
         >
           {/* Recessed Capsule Track */}
           <div
@@ -135,7 +132,7 @@ const BrandingBarBase: React.FC = () => {
               {isDark ? 'Dark' : 'Light'}
             </span>
           </div>
-        </motion.button>
+        </button>
       </div>
     </section>
   );

@@ -12,6 +12,7 @@ import {
   GraduationCap,
   Info,
   Layers,
+  Loader2,
   Search,
   Sparkles,
   Stethoscope,
@@ -20,12 +21,16 @@ import {
   XCircle
 } from 'lucide-react';
 import { TopicMaster3DIllustration } from '../illustrations/Magical3DIllustrations';
-import { BCSQuestionRecord, loadBCSQuestionBank } from '../../data/questionBank';
 import {
-  BCSSyllabusDocument,
+  BCSIndexDocument,
+  BCSQuestionRecord,
+  loadBCSIndex,
+  loadSubjectPack,
+  loadSubjectPacks
+} from '../../data/questionBank';
+import {
   consumeTopicMasterIntent,
   getSubjectTheme,
-  loadBCSSyllabus,
   MasteryMap,
   readMasteryMap,
   saveMasteryAnswer
@@ -42,10 +47,12 @@ interface FocusTarget {
   topic?: string;
   subtopic?: string;
   trend?: string;
+  slugs: string[];
 }
 
 const OPTION_LETTERS = ['ক', 'খ', 'গ', 'ঘ', 'ঙ', 'চ'];
 const PAGE_SIZE = 20;
+const ERA_LABELS = ['10th–20th', '21st–30th', '31st–40th', '41st–50th'] as const;
 
 function editionNum(ed: string): number {
   const n = parseInt(ed, 10);
@@ -60,31 +67,15 @@ function matchesEra(ed: string, era: EraFilter): boolean {
   return n > 0 && n <= 30;
 }
 
-function computeEraBuckets(items: BCSQuestionRecord[]) {
-  let e1 = 0; // 10-20
-  let e2 = 0; // 21-30
-  let e3 = 0; // 31-40
-  let e4 = 0; // 41-50
-  for (const q of items) {
-    const n = editionNum(q.rawEdition);
-    if (n >= 41) e4 += 1;
-    else if (n >= 31) e3 += 1;
-    else if (n >= 21) e2 += 1;
-    else if (n >= 10) e1 += 1;
-  }
-  return [
-    { label: '10th–20th', count: e1 },
-    { label: '21st–30th', count: e2 },
-    { label: '31st–40th', count: e3 },
-    { label: '41st–50th', count: e4 }
-  ];
-}
-
 export const TopicMasterView: React.FC = () => {
-  const [questions, setQuestions] = useState<BCSQuestionRecord[]>([]);
-  const [syllabus, setSyllabus] = useState<BCSSyllabusDocument | null>(null);
+  // Instant ~19.5 KB precomputed index for Level 1 & Level 2 & Trends & Special Cadre
+  const [indexDoc, setIndexDoc] = useState<BCSIndexDocument | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Lazy-loaded question pack only for the active Level 3 focus (~24–214 KB gz)
+  const [focusPool, setFocusPool] = useState<BCSQuestionRecord[]>([]);
+  const [focusLoading, setFocusLoading] = useState(false);
 
   // Navigation state inside Topic Master
   const [activeTab, setActiveTab] = useState<MainTab>('syllabus');
@@ -115,44 +106,48 @@ export const TopicMasterView: React.FC = () => {
 
   useEffect(() => {
     let active = true;
-    Promise.all([loadBCSQuestionBank(), loadBCSSyllabus().catch(() => null)])
-      .then(([qs, syl]) => {
+    loadBCSIndex()
+      .then((doc) => {
         if (!active) return;
-        setQuestions(qs);
-        setSyllabus(syl);
+        setIndexDoc(doc);
         setLoading(false);
 
-        // Apply cross-screen intent if user clicked a topic chip in Question Bank
         const intent = consumeTopicMasterIntent();
         if (intent) {
           if (intent.tab) setActiveTab(intent.tab);
           if (intent.trend) {
             setActiveTab('trends');
+            const match = doc.trends.find((t) => t.tag === intent.trend);
             setFocus({
               kind: 'trend',
               title: intent.trend,
               subtitle: 'BPSC Recurring Pattern',
-              trend: intent.trend
+              trend: intent.trend,
+              slugs: match?.slugs ?? Object.values(doc.subjectSlugs)
             });
           } else if (intent.topic && intent.tab === 'extra') {
             setActiveTab('extra');
+            const slug = (intent.subject && doc.subjectSlugs[intent.subject]) || 'special-cadre';
             setFocus({
               kind: 'extra-topic',
               title: intent.topic,
               subtitle: intent.subject || 'Extra / Special Cadre',
               subject: intent.subject,
-              topic: intent.topic
+              topic: intent.topic,
+              slugs: [slug]
             });
           } else if (intent.subject && intent.topic) {
             setActiveTab('syllabus');
             setSelectedSubject(intent.subject);
+            const slug = doc.subjectSlugs[intent.subject];
             setFocus({
               kind: 'topic',
               title: intent.topic,
               subtitle: intent.subject,
               subject: intent.subject,
               topic: intent.topic,
-              subtopic: intent.subtopic
+              subtopic: intent.subtopic,
+              slugs: slug ? [slug] : []
             });
             setActiveSubtopic(intent.subtopic || 'All');
           } else if (intent.subject) {
@@ -163,7 +158,7 @@ export const TopicMasterView: React.FC = () => {
       })
       .catch((err) => {
         if (!active) return;
-        setError(err instanceof Error ? err.message : 'Failed to load Topic Master data');
+        setError(err instanceof Error ? err.message : 'Failed to load Topic Master index');
         setLoading(false);
       });
     return () => {
@@ -171,256 +166,102 @@ export const TopicMasterView: React.FC = () => {
     };
   }, []);
 
-  // Split official syllabus questions vs [Extra Topic] questions cleanly
-  const officialQuestions = useMemo(
-    () => questions.filter((q) => !q.isExtraTopic),
-    [questions]
-  );
-  const extraQuestions = useMemo(
-    () => questions.filter((q) => q.isExtraTopic),
-    [questions]
-  );
-
-  // Official section marks map from bcs_syllabus.json
-  const sectionMarksMap = useMemo(() => {
-    const m = new Map<string, number>();
-    if (!syllabus) return m;
-    for (const subj of syllabus.subjects) {
-      for (const sec of subj.sections) {
-        m.set(sec.section, sec.marks);
-      }
+  // Load ONLY the needed subject pack(s) when entering Level 3 Practice
+  useEffect(() => {
+    if (!focus) {
+      setFocusPool([]);
+      setFocusLoading(false);
+      return;
     }
-    return m;
-  }, [syllabus]);
+    let active = true;
+    setFocusLoading(true);
+    const promise =
+      focus.slugs.length === 1
+        ? loadSubjectPack(focus.slugs[0], focus.subject)
+        : loadSubjectPacks(focus.slugs);
 
-  // Global mastery stats across official syllabus
-  const overallMastery = useMemo(() => {
-    let attempted = 0;
-    let correct = 0;
-    for (const q of officialQuestions) {
-      const state = mastery[q.id];
-      if (state !== undefined) {
-        attempted += 1;
-        if (state === 1) correct += 1;
-      }
-    }
-    return {
-      attempted,
-      correct,
-      pct: officialQuestions.length ? Math.round((correct / officialQuestions.length) * 100) : 0
-    };
-  }, [officialQuestions, mastery]);
-
-  // Level 1: 10 Official BCS Subjects summary cards
-  const subjectCards = useMemo(() => {
-    const bySubj = new Map<string, BCSQuestionRecord[]>();
-    for (const q of officialQuestions) {
-      const list = bySubj.get(q.subject);
-      if (list) list.push(q);
-      else bySubj.set(q.subject, [q]);
-    }
-
-    return Array.from(bySubj.entries())
-      .map(([subj, list]) => {
-        const theme = getSubjectTheme(subj);
-        const topicCounts = new Map<string, number>();
-        const subtopicSet = new Set<string>();
-        const examSet = new Set<string>();
-        let mastered = 0;
-
-        for (const q of list) {
-          topicCounts.set(q.syllabusTopic, (topicCounts.get(q.syllabusTopic) ?? 0) + 1);
-          subtopicSet.add(q.syllabusSubtopic);
-          examSet.add(q.bcsBatch);
-          if (mastery[q.id] === 1) mastered += 1;
-        }
-
-        const topTopics = Array.from(topicCounts.entries())
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 3);
-
-        return {
-          subject: subj,
-          theme,
-          totalQuestions: list.length,
-          sectionCount: topicCounts.size,
-          subtopicCount: subtopicSet.size,
-          examCount: examSet.size,
-          mastered,
-          masteryPct: list.length ? Math.round((mastered / list.length) * 100) : 0,
-          topTopics
-        };
+    promise
+      .then((qs) => {
+        if (!active) return;
+        setFocusPool(qs);
+        setFocusLoading(false);
       })
-      .sort((a, b) => a.theme.serial - b.theme.serial);
-  }, [officialQuestions, mastery]);
+      .catch(() => {
+        if (!active) return;
+        setFocusLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [focus]);
 
-  // Level 2: Selected Subject deep-dive (sections, subtopics, era chart, trends)
+  // Global mastery summary
+  const overallMasteryCount = useMemo(
+    () => Object.values(mastery).reduce<number>((acc, v) => acc + (v === 1 ? 1 : 0), 0),
+    [mastery]
+  );
+
+  // Level 1: 10 Official BCS Subjects sorted by official syllabus serial
+  const subjectCards = useMemo(() => {
+    if (!indexDoc) return [];
+    return [...indexDoc.subjects]
+      .map((s) => ({
+        ...s,
+        theme: getSubjectTheme(s.subject),
+        topTopics: [...s.sections]
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 3)
+          .map((sec) => [sec.topic, sec.count] as const)
+      }))
+      .sort((a, b) => a.theme.serial - b.theme.serial);
+  }, [indexDoc]);
+
+  const maxSubjectTotal = useMemo(
+    () => Math.max(1, ...subjectCards.map((c) => c.total)),
+    [subjectCards]
+  );
+
+  // Level 2: Selected Subject Deep-Dive (zero network delay — served directly from bcs_index.json!)
   const subjectDeepDive = useMemo(() => {
     if (!selectedSubject) return null;
-    const list = officialQuestions.filter((q) => q.subject === selectedSubject);
-    const theme = getSubjectTheme(selectedSubject);
-    const eraBuckets = computeEraBuckets(list);
-    const exams = new Set(list.map((q) => q.bcsBatch)).size;
+    return subjectCards.find((s) => s.subject === selectedSubject) ?? null;
+  }, [selectedSubject, subjectCards]);
 
-    const sectionMap = new Map<
-      string,
-      {
-        topic: string;
-        marks: number | null;
-        questions: BCSQuestionRecord[];
-        subtopics: Map<string, number>;
-        trends: Map<string, number>;
-        mastered: number;
-      }
-    >();
-
-    let subjectMastered = 0;
-    for (const q of list) {
-      const isMast = mastery[q.id] === 1;
-      if (isMast) subjectMastered += 1;
-      let entry = sectionMap.get(q.syllabusTopic);
-      if (!entry) {
-        entry = {
-          topic: q.syllabusTopic,
-          marks: sectionMarksMap.get(q.syllabusTopic) ?? null,
-          questions: [],
-          subtopics: new Map(),
-          trends: new Map(),
-          mastered: 0
-        };
-        sectionMap.set(q.syllabusTopic, entry);
-      }
-      entry.questions.push(q);
-      if (isMast) entry.mastered += 1;
-      entry.subtopics.set(q.syllabusSubtopic, (entry.subtopics.get(q.syllabusSubtopic) ?? 0) + 1);
-      entry.trends.set(q.bpscTrendTag, (entry.trends.get(q.bpscTrendTag) ?? 0) + 1);
-    }
-
-    // Preserve official syllabus section order if available, otherwise sort by count desc
-    const syllabusOrder = new Map<string, number>();
-    if (syllabus) {
-      const matchSubj = syllabus.subjects.find((s) => s.serial === theme.serial);
-      matchSubj?.sections.forEach((sec, idx) => syllabusOrder.set(sec.section, idx));
-    }
-
-    const sections = Array.from(sectionMap.values())
-      .map((s) => ({
-        topic: s.topic,
-        marks: s.marks,
-        count: s.questions.length,
-        sharePct: list.length ? Math.round((s.questions.length / list.length) * 100) : 0,
-        mastered: s.mastered,
-        subtopics: Array.from(s.subtopics.entries()).sort((a, b) => b[1] - a[1]),
-        topTrends: Array.from(s.trends.entries())
-          .filter(([, c]) => c >= 2)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 3)
-      }))
-      .sort((a, b) => {
-        const oa = syllabusOrder.get(a.topic);
-        const ob = syllabusOrder.get(b.topic);
-        if (oa !== undefined && ob !== undefined) return oa - ob;
-        return b.count - a.count;
-      });
-
-    return {
-      subject: selectedSubject,
-      theme,
-      total: list.length,
-      exams,
-      mastered: subjectMastered,
-      masteryPct: list.length ? Math.round((subjectMastered / list.length) * 100) : 0,
-      eraBuckets,
-      sections
-    };
-  }, [selectedSubject, officialQuestions, mastery, sectionMarksMap, syllabus]);
-
-  // Tab 2: BPSC Recurring Trends Radar
+  // Tab 2: BPSC Recurring Trends Radar (instant from bcs_index.json!)
   const trendCards = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        tag: string;
-        count: number;
-        recentCount: number;
-        latestEdition: number;
-        exams: Set<string>;
-        subjectCounts: Map<string, number>;
-      }
-    >();
-
-    for (const q of officialQuestions) {
-      if (trendSubject !== 'All' && q.subject !== trendSubject) continue;
-      let rec = map.get(q.bpscTrendTag);
-      if (!rec) {
-        rec = {
-          tag: q.bpscTrendTag,
-          count: 0,
-          recentCount: 0,
-          latestEdition: 0,
-          exams: new Set(),
-          subjectCounts: new Map()
-        };
-        map.set(q.bpscTrendTag, rec);
-      }
-      rec.count += 1;
-      const ed = editionNum(q.rawEdition);
-      if (ed >= 41) rec.recentCount += 1;
-      if (ed > rec.latestEdition) rec.latestEdition = ed;
-      rec.exams.add(q.bcsBatch);
-      rec.subjectCounts.set(q.subject, (rec.subjectCounts.get(q.subject) ?? 0) + 1);
-    }
-
+    if (!indexDoc) return [];
     const qLower = trendSearch.trim().toLowerCase();
-    return Array.from(map.values())
+    return indexDoc.trends
       .filter((t) => {
+        if (trendSubject !== 'All' && t.subject !== trendSubject) return false;
         if (t.count < trendMinCount) return false;
         if (qLower && !t.tag.toLowerCase().includes(qLower)) return false;
         return true;
       })
-      .map((t) => {
-        const primarySubject =
-          Array.from(t.subjectCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ||
-          'General';
-        return {
-          tag: t.tag,
-          count: t.count,
-          recentCount: t.recentCount,
-          latestEdition: t.latestEdition,
-          examSpread: t.exams.size,
-          primarySubject
-        };
-      })
       .sort((a, b) =>
         trendSort === 'recent'
-          ? b.recentCount - a.recentCount || b.count - a.count
+          ? b.recent - a.recent || b.count - a.count
           : b.count - a.count
       )
       .slice(0, 80);
-  }, [officialQuestions, trendSubject, trendSearch, trendMinCount, trendSort]);
+  }, [indexDoc, trendSubject, trendSearch, trendMinCount, trendSort]);
 
-  // Tab 3: Extra / Special Cadre Topic Clusters
+  // Tab 3: Extra / Special Cadre Clusters
   const extraTopicCards = useMemo(() => {
-    const map = new Map<string, { topic: string; subject: string; count: number; exams: Set<string> }>();
-    for (const q of extraQuestions) {
-      let rec = map.get(q.syllabusTopic);
-      if (!rec) {
-        rec = { topic: q.syllabusTopic, subject: q.subject, count: 0, exams: new Set() };
-        map.set(q.syllabusTopic, rec);
-      }
-      rec.count += 1;
-      rec.exams.add(q.bcsBatch);
-    }
+    if (!indexDoc) return [];
     const qLower = extraSearch.trim().toLowerCase();
-    return Array.from(map.values())
-      .filter((x) => !qLower || x.topic.toLowerCase().includes(qLower) || x.subject.toLowerCase().includes(qLower))
-      .sort((a, b) => b.count - a.count);
-  }, [extraQuestions, extraSearch]);
+    return indexDoc.extraTopics.filter(
+      (x) =>
+        !qLower ||
+        x.topic.toLowerCase().includes(qLower) ||
+        x.subject.toLowerCase().includes(qLower)
+    );
+  }, [indexDoc, extraSearch]);
 
-  // Level 3: Focused Practice Questions
+  // Level 3: Filtered Practice Questions from lazy subject pack
   const focusBaseQuestions = useMemo(() => {
     if (!focus) return [];
-    return questions.filter((q) => {
+    return focusPool.filter((q) => {
       if (focus.kind === 'subject') return !q.isExtraTopic && q.subject === focus.subject;
       if (focus.kind === 'topic') {
         return !q.isExtraTopic && q.subject === focus.subject && q.syllabusTopic === focus.topic;
@@ -429,7 +270,7 @@ export const TopicMasterView: React.FC = () => {
       if (focus.kind === 'extra-topic') return q.isExtraTopic && q.syllabusTopic === focus.topic;
       return false;
     });
-  }, [questions, focus]);
+  }, [focusPool, focus]);
 
   const focusSubtopics = useMemo(() => {
     if (!focus || focus.kind !== 'topic') return [];
@@ -499,9 +340,13 @@ export const TopicMasterView: React.FC = () => {
     }
   };
 
+  const officialTotal = indexDoc?.officialTotal ?? 5365;
+  const extraTotal = indexDoc?.extraTotal ?? 290;
+  const overallMasteryPct = officialTotal ? Math.round((overallMasteryCount / officialTotal) * 100) : 0;
+
   return (
     <div ref={topRef} className="section-card-tm rounded-[2rem] sm:rounded-[2.5rem] p-4 sm:p-7 lg:p-8 space-y-5">
-      {/* Clean Hero Header + 3-Tab Switcher */}
+      {/* Clean Hero Header */}
       <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
         <TopicMaster3DIllustration className="w-24 h-24 sm:w-28 sm:h-28 shrink-0 animate-float-gentle" />
         <div className="text-center sm:text-left space-y-2 flex-1">
@@ -510,10 +355,10 @@ export const TopicMasterView: React.FC = () => {
               <Compass className="w-3.5 h-3.5 text-indigo-500" />
               <span>Official 200-Mark BCS Syllabus • 10th–50th BCS</span>
             </span>
-            {overallMastery.attempted > 0 && (
+            {overallMasteryCount > 0 && (
               <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-emerald-800 dark:text-emerald-200 font-rounded font-bold text-xs">
                 <Target className="w-3.5 h-3.5 text-emerald-500" />
-                <span>Mastered: {overallMastery.correct.toLocaleString()} Qs</span>
+                <span>Mastered: {overallMasteryCount.toLocaleString()} Qs</span>
               </span>
             )}
           </div>
@@ -533,7 +378,7 @@ export const TopicMasterView: React.FC = () => {
             {
               id: 'syllabus' as const,
               label: 'Syllabus Map',
-              badge: `${officialQuestions.length.toLocaleString()}`,
+              badge: officialTotal.toLocaleString(),
               icon: <Layers className="w-3.5 h-3.5 shrink-0" />
             },
             {
@@ -545,7 +390,7 @@ export const TopicMasterView: React.FC = () => {
             {
               id: 'extra' as const,
               label: 'Special Cadre',
-              badge: `${extraQuestions.length}`,
+              badge: String(extraTotal),
               icon: <Stethoscope className="w-3.5 h-3.5 shrink-0" />
             }
           ] as const
@@ -576,10 +421,10 @@ export const TopicMasterView: React.FC = () => {
         })}
       </div>
 
-      {/* Loading / Error */}
       {loading && (
-        <div className="p-10 rounded-3xl theme-subcard text-center font-rounded font-bold theme-text-secondary">
-          Loading Official BCS Syllabus &amp; 5,655 classified questions...
+        <div className="p-10 rounded-3xl theme-subcard text-center font-rounded font-bold theme-text-secondary flex items-center justify-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
+          <span>Loading Official BCS Syllabus...</span>
         </div>
       )}
 
@@ -590,11 +435,10 @@ export const TopicMasterView: React.FC = () => {
       )}
 
       {/* ====================================================================
-          LEVEL 3: FOCUSED PRACTICE WORKSPACE (Shared by Syllabus, Trends, Extra)
+          LEVEL 3: FOCUSED PRACTICE WORKSPACE (Lazy-loads only needed subject pack)
          ==================================================================== */}
       {!loading && !error && focus && (
         <div className="space-y-4">
-          {/* Breadcrumb + Back */}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <button
               type="button"
@@ -613,13 +457,14 @@ export const TopicMasterView: React.FC = () => {
               </span>
             </button>
 
-            <span className="font-rounded font-bold text-xs theme-text-secondary">
-              {focusFilteredQuestions.length.toLocaleString()} questions • Mastered{' '}
-              <span className="text-emerald-600 dark:text-emerald-400">{focusMastery.pct}%</span>
-            </span>
+            {!focusLoading && (
+              <span className="font-rounded font-bold text-xs theme-text-secondary">
+                {focusFilteredQuestions.length.toLocaleString()} questions • Mastered{' '}
+                <span className="text-emerald-600 dark:text-emerald-400">{focusMastery.pct}%</span>
+              </span>
+            )}
           </div>
 
-          {/* Topic Focus Card */}
           <div className="p-4 sm:p-5 rounded-3xl theme-subcard space-y-3.5">
             <div className="space-y-1">
               {focus.subtitle && (
@@ -632,23 +477,23 @@ export const TopicMasterView: React.FC = () => {
               </h2>
             </div>
 
-            {/* Mastery Bar */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-xs font-rounded font-semibold theme-text-muted">
-                <span>Topic Mastery Progress</span>
-                <span className="text-emerald-600 dark:text-emerald-300 font-bold">
-                  {focusMastery.mastered} / {focusMastery.total} ({focusMastery.pct}%)
-                </span>
+            {!focusLoading && (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs font-rounded font-semibold theme-text-muted">
+                  <span>Topic Mastery Progress</span>
+                  <span className="text-emerald-600 dark:text-emerald-300 font-bold">
+                    {focusMastery.mastered} / {focusMastery.total} ({focusMastery.pct}%)
+                  </span>
+                </div>
+                <div className="h-2 rounded-full bg-slate-400/20 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-300"
+                    style={{ width: `${focusMastery.pct}%` }}
+                  />
+                </div>
               </div>
-              <div className="h-2 rounded-full bg-slate-400/20 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-300"
-                  style={{ width: `${focusMastery.pct}%` }}
-                />
-              </div>
-            </div>
+            )}
 
-            {/* Interactive Official Subtopic Chips (when topic has multiple official subtopics) */}
             {focusSubtopics.length > 0 && (
               <div className="space-y-1.5 pt-1 border-t border-slate-300/35 dark:border-slate-700/45">
                 <span className="block text-[11px] font-rounded font-bold uppercase tracking-wider theme-text-muted">
@@ -694,7 +539,6 @@ export const TopicMasterView: React.FC = () => {
               </div>
             )}
 
-            {/* Era filter + Search + Practice/Study Mode */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-1">
               <div className="relative flex-1">
                 <Search className="w-4 h-4 theme-text-muted absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -764,8 +608,12 @@ export const TopicMasterView: React.FC = () => {
             </div>
           </div>
 
-          {/* Focused Question Cards */}
-          {focusPageItems.length === 0 ? (
+          {focusLoading ? (
+            <div className="p-10 rounded-3xl theme-subcard text-center font-rounded font-bold theme-text-secondary flex items-center justify-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
+              <span>Loading topic questions…</span>
+            </div>
+          ) : focusPageItems.length === 0 ? (
             <div className="p-8 rounded-3xl theme-subcard text-center font-rounded text-sm theme-text-secondary">
               No questions match this filter combination. Try switching to “All” eras.
             </div>
@@ -775,6 +623,7 @@ export const TopicMasterView: React.FC = () => {
                 const picked = pickedAnswers[q.id];
                 const isPicked = picked !== undefined;
                 const reveal = studyMode || isPicked || Boolean(expandedCards[q.id]);
+                const trendEntry = indexDoc?.trends.find((t) => t.tag === q.bpscTrendTag);
                 return (
                   <article
                     key={q.id}
@@ -793,7 +642,12 @@ export const TopicMasterView: React.FC = () => {
                               kind: 'trend',
                               title: q.bpscTrendTag,
                               subtitle: `BPSC Recurring Trend (${q.sameTypeCount}x)`,
-                              trend: q.bpscTrendTag
+                              trend: q.bpscTrendTag,
+                              slugs:
+                                trendEntry?.slugs ??
+                                (indexDoc?.subjectSlugs[q.subject]
+                                  ? [indexDoc.subjectSlugs[q.subject]]
+                                  : focus.slugs)
                             })
                           }
                           className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-emerald-800 dark:text-emerald-200 font-rounded font-bold text-[11px] hover:bg-emerald-500/25 cursor-pointer"
@@ -905,8 +759,7 @@ export const TopicMasterView: React.FC = () => {
             </div>
           )}
 
-          {/* Pagination */}
-          {totalPages > 1 && (
+          {!focusLoading && totalPages > 1 && (
             <div className="flex items-center justify-between gap-2 pt-2">
               <button
                 type="button"
@@ -941,25 +794,16 @@ export const TopicMasterView: React.FC = () => {
       )}
 
       {/* ====================================================================
-          TAB 1: SYLLABUS MAP — LEVEL 1 (10 OFFICIAL SUBJECTS) & LEVEL 2 (SECTIONS)
+          TAB 1: SYLLABUS MAP — LEVEL 1 (10 OFFICIAL SUBJECTS — INSTANT)
          ==================================================================== */}
       {!loading && !error && !focus && activeTab === 'syllabus' && !subjectDeepDive && (
         <div className="space-y-4">
-          {/* Compact 4-Stat Strip */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             {[
               { label: 'Official Marks', value: '200', sub: '10 Subjects' },
               { label: 'Syllabus Units', value: '89', sub: 'Exact BPSC Wording' },
-              {
-                label: 'Syllabus MCQs',
-                value: officialQuestions.length.toLocaleString(),
-                sub: '10th–50th BCS'
-              },
-              {
-                label: 'Your Mastery',
-                value: `${overallMastery.pct}%`,
-                sub: `${overallMastery.correct} mastered`
-              }
+              { label: 'Syllabus MCQs', value: officialTotal.toLocaleString(), sub: '10th–50th BCS' },
+              { label: 'Your Mastery', value: `${overallMasteryPct}%`, sub: `${overallMasteryCount} mastered` }
             ].map((item) => (
               <div key={item.label} className="px-4 py-3 rounded-2xl theme-subcard">
                 <div className="text-xl sm:text-2xl font-rounded font-extrabold theme-text-primary leading-tight">
@@ -971,7 +815,6 @@ export const TopicMasterView: React.FC = () => {
             ))}
           </div>
 
-          {/* 10 Official Subject Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
             {subjectCards.map((card) => (
               <button
@@ -1006,11 +849,10 @@ export const TopicMasterView: React.FC = () => {
                   </span>
                 </div>
 
-                {/* Stats Row */}
                 <div className="flex items-center justify-between text-xs font-rounded font-semibold theme-text-secondary">
                   <span>
-                    <strong className="theme-text-primary">{card.totalQuestions.toLocaleString()}</strong>{' '}
-                    Qs • {card.sectionCount} sections • {card.subtopicCount} subtopics
+                    <strong className="theme-text-primary">{card.total.toLocaleString()}</strong> Qs •{' '}
+                    {card.sections.length} sections • {card.subtopicCount} subtopics
                   </span>
                   <span className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-300 font-bold group-hover:translate-x-0.5 transition-transform">
                     <span>Explore</span>
@@ -1018,20 +860,15 @@ export const TopicMasterView: React.FC = () => {
                   </span>
                 </div>
 
-                {/* Visual Weight + Mastery Bar */}
                 <div className="h-2 rounded-full bg-slate-400/20 overflow-hidden">
                   <div
                     className={`h-full rounded-full bg-gradient-to-r ${card.theme.barGradient}`}
                     style={{
-                      width: `${Math.max(
-                        10,
-                        Math.round((card.totalQuestions / (subjectCards[0]?.totalQuestions || 1)) * 100)
-                      )}%`
+                      width: `${Math.max(10, Math.round((card.total / maxSubjectTotal) * 100))}%`
                     }}
                   />
                 </div>
 
-                {/* Top Syllabus Topic Preview Pills */}
                 <div className="flex flex-wrap gap-1.5">
                   {card.topTopics.map(([topic, cnt]) => (
                     <span
@@ -1049,11 +886,10 @@ export const TopicMasterView: React.FC = () => {
       )}
 
       {/* ====================================================================
-          TAB 1 — LEVEL 2: SUBJECT DEEP-DIVE (SECTIONS, SUBTOPICS & ERA CHART)
+          TAB 1 — LEVEL 2: SUBJECT DEEP-DIVE (INSTANT FROM bcs_index.json)
          ==================================================================== */}
       {!loading && !error && !focus && activeTab === 'syllabus' && subjectDeepDive && (
         <div className="space-y-4">
-          {/* Breadcrumb + Quick Subject Switcher */}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <button
               type="button"
@@ -1082,7 +918,6 @@ export const TopicMasterView: React.FC = () => {
             </div>
           </div>
 
-          {/* Subject Intelligence Banner + 4-Era BPSC Evolution */}
           <div className="p-5 sm:p-6 rounded-3xl theme-subcard space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="space-y-1">
@@ -1093,7 +928,7 @@ export const TopicMasterView: React.FC = () => {
                     Official Weight: {subjectDeepDive.theme.marks} / 200 Marks
                   </span>
                   <span className="px-2.5 py-0.5 rounded-full bg-slate-500/12 font-rounded font-bold text-xs theme-text-secondary">
-                    {subjectDeepDive.total.toLocaleString()} Historical Qs • {subjectDeepDive.exams} Exams
+                    {subjectDeepDive.total.toLocaleString()} Historical Qs • {subjectDeepDive.examCount} Exams
                   </span>
                 </div>
                 <h2 className="text-xl sm:text-2xl font-bangla font-bold theme-text-primary">
@@ -1111,7 +946,8 @@ export const TopicMasterView: React.FC = () => {
                     kind: 'subject',
                     title: subjectDeepDive.theme.nameBn,
                     subtitle: `${subjectDeepDive.subject} • All Syllabus Topics`,
-                    subject: subjectDeepDive.subject
+                    subject: subjectDeepDive.subject,
+                    slugs: [subjectDeepDive.slug]
                   })
                 }
                 className={`shrink-0 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r ${subjectDeepDive.theme.gradient} text-white font-rounded font-bold text-xs sm:text-sm shadow-md hover:scale-[1.02] active:scale-[0.98] transition-transform cursor-pointer`}
@@ -1121,27 +957,26 @@ export const TopicMasterView: React.FC = () => {
               </button>
             </div>
 
-            {/* Clean 4-Era Visual Spark Bars */}
             <div className="pt-3 border-t border-slate-300/35 dark:border-slate-700/45 space-y-2">
               <div className="flex items-center justify-between text-xs font-rounded font-bold theme-text-muted">
                 <span>BPSC Question Trend Across Eras</span>
-                <span>Mastery: {subjectDeepDive.masteryPct}%</span>
+                <span>{subjectDeepDive.sections.length} Official Sections</span>
               </div>
               <div className="grid grid-cols-4 gap-2 sm:gap-3">
-                {subjectDeepDive.eraBuckets.map((b) => {
-                  const maxB = Math.max(1, ...subjectDeepDive.eraBuckets.map((x) => x.count));
-                  const pct = Math.max(8, Math.round((b.count / maxB) * 100));
+                {subjectDeepDive.era.map((count, idx) => {
+                  const maxB = Math.max(1, ...subjectDeepDive.era);
+                  const pct = Math.max(8, Math.round((count / maxB) * 100));
                   return (
                     <div
-                      key={b.label}
+                      key={ERA_LABELS[idx]}
                       className="p-2.5 rounded-2xl bg-white/60 dark:bg-slate-900/50 space-y-1.5"
                     >
                       <div className="flex items-baseline justify-between gap-1">
                         <span className="text-[10px] sm:text-xs font-rounded font-bold theme-text-muted">
-                          {b.label}
+                          {ERA_LABELS[idx]}
                         </span>
                         <strong className="text-xs sm:text-sm font-rounded theme-text-primary">
-                          {b.count}
+                          {count}
                         </strong>
                       </div>
                       <div className="h-1.5 rounded-full bg-slate-400/20 overflow-hidden">
@@ -1157,136 +992,137 @@ export const TopicMasterView: React.FC = () => {
             </div>
           </div>
 
-          {/* Official Syllabus Sections List */}
           <div className="space-y-3.5">
-            {subjectDeepDive.sections.map((sec) => (
-              <div
-                key={sec.topic}
-                className="p-4 sm:p-5 rounded-3xl theme-subcard space-y-3.5 shadow-sm"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                  <div className="space-y-1.5 flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {sec.marks !== null && (
-                        <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-400/40 text-amber-800 dark:text-amber-200 font-rounded font-bold text-[11px]">
-                          {sec.marks} Marks
+            {subjectDeepDive.sections.map((sec) => {
+              const sharePct = subjectDeepDive.total
+                ? Math.round((sec.count / subjectDeepDive.total) * 100)
+                : 0;
+              return (
+                <div
+                  key={sec.topic}
+                  className="p-4 sm:p-5 rounded-3xl theme-subcard space-y-3.5 shadow-sm"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {sec.marks !== null && (
+                          <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-400/40 text-amber-800 dark:text-amber-200 font-rounded font-bold text-[11px]">
+                            {sec.marks} Marks
+                          </span>
+                        )}
+                        <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-700 dark:text-indigo-200 font-rounded font-bold text-[11px]">
+                          {sec.count} Qs ({sharePct}% of subject)
                         </span>
-                      )}
-                      <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-700 dark:text-indigo-200 font-rounded font-bold text-[11px]">
-                        {sec.count} Qs ({sec.sharePct}% of subject)
-                      </span>
-                      {sec.mastered > 0 && (
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-rounded font-bold text-[11px]">
-                          ✓ {sec.mastered} mastered
-                        </span>
-                      )}
+                      </div>
+                      <h3 className="font-bangla font-bold text-base sm:text-lg theme-text-primary leading-snug">
+                        {sec.topic}
+                      </h3>
                     </div>
-                    <h3 className="font-bangla font-bold text-base sm:text-lg theme-text-primary leading-snug">
-                      {sec.topic}
-                    </h3>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        openFocus({
+                          kind: 'topic',
+                          title: sec.topic,
+                          subtitle: subjectDeepDive.theme.nameBn,
+                          subject: subjectDeepDive.subject,
+                          topic: sec.topic,
+                          slugs: [subjectDeepDive.slug]
+                        })
+                      }
+                      className="shrink-0 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-rounded font-bold text-xs shadow-sm transition-colors cursor-pointer"
+                    >
+                      <span>Practice ({sec.count})</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      openFocus({
-                        kind: 'topic',
-                        title: sec.topic,
-                        subtitle: subjectDeepDive.theme.nameBn,
-                        subject: subjectDeepDive.subject,
-                        topic: sec.topic
-                      })
-                    }
-                    className="shrink-0 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-rounded font-bold text-xs shadow-sm transition-colors cursor-pointer"
-                  >
-                    <span>Practice ({sec.count})</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                {/* Proportional Share Bar */}
-                <div className="h-1.5 rounded-full bg-slate-400/20 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full bg-gradient-to-r ${subjectDeepDive.theme.barGradient}`}
-                    style={{ width: `${Math.max(4, sec.sharePct)}%` }}
-                  />
-                </div>
-
-                {/* Exact Official Subtopics (clickable to drill directly!) */}
-                <div className="space-y-1.5">
-                  <span className="block text-[11px] font-rounded font-bold uppercase tracking-wider theme-text-muted">
-                    Exact Official Syllabus Subtopics
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {sec.subtopics.map(([sub, cnt]) => (
-                      <button
-                        key={sub}
-                        type="button"
-                        onClick={() =>
-                          openFocus(
-                            {
-                              kind: 'topic',
-                              title: sec.topic,
-                              subtitle: subjectDeepDive.theme.nameBn,
-                              subject: subjectDeepDive.subject,
-                              topic: sec.topic,
-                              subtopic: sub
-                            },
-                            sub
-                          )
-                        }
-                        className="px-3 py-1.5 rounded-xl bg-white/70 dark:bg-slate-900/55 border border-slate-300/55 dark:border-slate-700/60 hover:border-indigo-400 font-bangla font-semibold text-xs text-left theme-text-primary transition-colors cursor-pointer"
-                      >
-                        {sub.length > 74 ? `${sub.slice(0, 73)}…` : sub}{' '}
-                        <span className="font-rounded text-indigo-600 dark:text-indigo-300 font-bold">
-                          ({cnt})
-                        </span>
-                      </button>
-                    ))}
+                  <div className="h-1.5 rounded-full bg-slate-400/20 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full bg-gradient-to-r ${subjectDeepDive.theme.barGradient}`}
+                      style={{ width: `${Math.max(4, sharePct)}%` }}
+                    />
                   </div>
-                </div>
 
-                {/* Top Recurring BPSC Trends in this section */}
-                {sec.topTrends.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                    <span className="text-[11px] font-rounded font-bold theme-text-muted mr-1">
-                      Top Trends:
+                  <div className="space-y-1.5">
+                    <span className="block text-[11px] font-rounded font-bold uppercase tracking-wider theme-text-muted">
+                      Exact Official Syllabus Subtopics
                     </span>
-                    {sec.topTrends.map(([trend, cnt]) => (
-                      <button
-                        key={trend}
-                        type="button"
-                        onClick={() =>
-                          openFocus({
-                            kind: 'trend',
-                            title: trend,
-                            subtitle: `Recurring Trend in ${subjectDeepDive.theme.shortEn}`,
-                            trend
-                          })
-                        }
-                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/12 border border-emerald-400/35 text-emerald-800 dark:text-emerald-200 font-rounded font-bold text-[11px] hover:bg-emerald-500/25 cursor-pointer"
-                      >
-                        <TrendingUp className="w-3 h-3" />
-                        <span>
-                          {trend} ({cnt}x)
-                        </span>
-                      </button>
-                    ))}
+                    <div className="flex flex-wrap gap-1.5">
+                      {sec.subtopics.map(([sub, cnt]) => (
+                        <button
+                          key={sub}
+                          type="button"
+                          onClick={() =>
+                            openFocus(
+                              {
+                                kind: 'topic',
+                                title: sec.topic,
+                                subtitle: subjectDeepDive.theme.nameBn,
+                                subject: subjectDeepDive.subject,
+                                topic: sec.topic,
+                                subtopic: sub,
+                                slugs: [subjectDeepDive.slug]
+                              },
+                              sub
+                            )
+                          }
+                          className="px-3 py-1.5 rounded-xl bg-white/70 dark:bg-slate-900/55 border border-slate-300/55 dark:border-slate-700/60 hover:border-indigo-400 font-bangla font-semibold text-xs text-left theme-text-primary transition-colors cursor-pointer"
+                        >
+                          {sub.length > 74 ? `${sub.slice(0, 73)}…` : sub}{' '}
+                          <span className="font-rounded text-indigo-600 dark:text-indigo-300 font-bold">
+                            ({cnt})
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                )}
-              </div>
-            ))}
+
+                  {sec.topTrends.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      <span className="text-[11px] font-rounded font-bold theme-text-muted mr-1">
+                        Top Trends:
+                      </span>
+                      {sec.topTrends.map(([trend, cnt]) => {
+                        const match = indexDoc?.trends.find((t) => t.tag === trend);
+                        return (
+                          <button
+                            key={trend}
+                            type="button"
+                            onClick={() =>
+                              openFocus({
+                                kind: 'trend',
+                                title: trend,
+                                subtitle: `Recurring Trend in ${subjectDeepDive.theme.shortEn}`,
+                                trend,
+                                slugs: match?.slugs ?? [subjectDeepDive.slug]
+                              })
+                            }
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/12 border border-emerald-400/35 text-emerald-800 dark:text-emerald-200 font-rounded font-bold text-[11px] hover:bg-emerald-500/25 cursor-pointer"
+                          >
+                            <TrendingUp className="w-3 h-3" />
+                            <span>
+                              {trend} ({cnt}x)
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
 
       {/* ====================================================================
-          TAB 2: BPSC RECURRING TRENDS RADAR
+          TAB 2: BPSC RECURRING TRENDS RADAR (INSTANT)
          ==================================================================== */}
       {!loading && !error && !focus && activeTab === 'trends' && (
         <div className="space-y-4">
           <div className="p-4 rounded-3xl theme-subcard space-y-3">
-            {/* Subject pills */}
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
               <button
                 type="button"
@@ -1315,7 +1151,6 @@ export const TopicMasterView: React.FC = () => {
               ))}
             </div>
 
-            {/* Search + Min frequency + Sort */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
               <div className="relative flex-1">
                 <Search className="w-4 h-4 theme-text-muted absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -1370,7 +1205,6 @@ export const TopicMasterView: React.FC = () => {
             </div>
           </div>
 
-          {/* Ranked Trend Cards Grid */}
           {trendCards.length === 0 ? (
             <div className="p-8 rounded-3xl theme-subcard text-center font-rounded text-sm theme-text-secondary">
               No recurring trends match this filter. Try lowering the minimum frequency to 2+.
@@ -1380,8 +1214,8 @@ export const TopicMasterView: React.FC = () => {
               {trendCards.map((t, idx) => {
                 const maxC = trendCards[0]?.count || 1;
                 const pct = Math.max(8, Math.round((t.count / maxC) * 100));
-                const subjTheme = getSubjectTheme(t.primarySubject);
-                const isHotRecent = t.latestEdition >= 45;
+                const subjTheme = getSubjectTheme(t.subject);
+                const isHotRecent = t.latest >= 45;
 
                 return (
                   <button
@@ -1392,7 +1226,8 @@ export const TopicMasterView: React.FC = () => {
                         kind: 'trend',
                         title: t.tag,
                         subtitle: `BPSC Recurring Trend • ${t.count} questions across ${t.examSpread} exams`,
-                        trend: t.tag
+                        trend: t.tag,
+                        slugs: t.slugs
                       })
                     }
                     className="group text-left p-4 rounded-3xl theme-subcard border border-transparent hover:border-emerald-400/60 transition-all hover:scale-[1.01] cursor-pointer space-y-2.5 shadow-sm"
@@ -1429,11 +1264,11 @@ export const TopicMasterView: React.FC = () => {
                         {isHotRecent && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-700 dark:text-rose-300">
                             <Flame className="w-3 h-3" />
-                            <span>Asked in {t.latestEdition}th BCS</span>
+                            <span>Asked in {t.latest}th BCS</span>
                           </span>
                         )}
-                        {t.recentCount > 0 && (
-                          <span className="theme-text-muted">{t.recentCount} in 41st–50th</span>
+                        {t.recent > 0 && (
+                          <span className="theme-text-muted">{t.recent} in 41st–50th</span>
                         )}
                       </div>
                       <span className="text-indigo-600 dark:text-indigo-300 group-hover:translate-x-0.5 transition-transform">
@@ -1449,7 +1284,7 @@ export const TopicMasterView: React.FC = () => {
       )}
 
       {/* ====================================================================
-          TAB 3: EXTRA & SPECIAL CADRE TOPICS (Cleanly Separated)
+          TAB 3: EXTRA & SPECIAL CADRE TOPICS (INSTANT)
          ==================================================================== */}
       {!loading && !error && !focus && activeTab === 'extra' && (
         <div className="space-y-4">
@@ -1460,7 +1295,7 @@ export const TopicMasterView: React.FC = () => {
               </span>
               <div className="space-y-1">
                 <h2 className="font-rounded font-bold text-base sm:text-lg theme-text-primary">
-                  Special Cadre &amp; Out-of-Syllabus Topics ({extraQuestions.length} Questions)
+                  Special Cadre &amp; Out-of-Syllabus Topics ({extraTotal} Questions)
                 </h2>
                 <p className="font-bangla text-xs sm:text-sm theme-text-secondary">
                   বিশেষ বিসিএস (যেমন ৪৮তম, ৪২তম, ৩৯তম মেডিকেল/ডেন্টাল ক্যাডার) ও সাধারণ ২০০ নম্বরের সিলেবাসের বাইরের প্রশ্নগুলো আলাদাভাবে সাজানো হয়েছে যাতে আপনার মূল সিলেবাসের অ্যানালিটিক্স নির্ভুল থাকে।
@@ -1491,7 +1326,8 @@ export const TopicMasterView: React.FC = () => {
                     title: item.topic,
                     subtitle: item.subject,
                     subject: item.subject,
-                    topic: item.topic
+                    topic: item.topic,
+                    slugs: [item.slug]
                   })
                 }
                 className="group text-left p-4 rounded-3xl theme-subcard border border-transparent hover:border-amber-400/60 transition-all hover:scale-[1.01] cursor-pointer flex items-center justify-between gap-3 shadow-sm"
@@ -1504,7 +1340,7 @@ export const TopicMasterView: React.FC = () => {
                     {item.topic.replace(/^\[Extra Topic\]\s*/i, '')}
                   </h3>
                   <p className="text-[11px] font-rounded theme-text-muted">
-                    {Array.from(item.exams).join(', ')}
+                    {item.exams.join(', ')}
                   </p>
                 </div>
 

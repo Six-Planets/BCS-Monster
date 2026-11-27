@@ -5,7 +5,11 @@
  */
 const ENV_URL = (import.meta.env.VITE_API_URL as string | undefined) || '';
 const ENV_GOOGLE_CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) || '';
+const DEFAULT_GOOGLE_CLIENT_ID =
+  '1025538265896-nscumrkh9hgfjmlp4nkp4u3f6d0afi79.apps.googleusercontent.com';
 const DEFAULT_URL = 'https://bcs.5-223-93-53.sslip.io';
+
+export const INSTANT_GOOGLE_CLIENT_ID = ENV_GOOGLE_CLIENT_ID.trim() || DEFAULT_GOOGLE_CLIENT_ID;
 
 /** Same-origin when served from our server; absolute URL in dev / inside the APK fallback. */
 export const API_URL: string = (() => {
@@ -275,35 +279,37 @@ export interface AuthServerSettings {
 }
 
 export async function getAuthSettings(): Promise<AuthServerSettings> {
-  let google = false;
+  let google = true;
   let email = true;
-  let mailerAutoconfirm = true;
-  let googleClientId = ENV_GOOGLE_CLIENT_ID.trim();
+  let mailerAutoconfirm = false;
+  let googleClientId = INSTANT_GOOGLE_CLIENT_ID;
 
-  try {
-    const res = await fetch(`${API_URL}/auth/v1/settings`, { cache: 'no-store' });
-    if (res.ok) {
-      const data = (await res.json()) as {
+  // Run settings + runtime config in parallel (zero serial waterfall)
+  const [settingsRes, cfgRes] = await Promise.allSettled([
+    fetch(`${API_URL}/auth/v1/settings`, { cache: 'no-store' }),
+    fetch(`./auth-config.json?t=${Date.now()}`, { cache: 'no-store' })
+  ]);
+
+  if (settingsRes.status === 'fulfilled' && settingsRes.value.ok) {
+    try {
+      const data = (await settingsRes.value.json()) as {
         external?: { google?: boolean; email?: boolean };
         mailer_autoconfirm?: boolean;
       };
       google = Boolean(data?.external?.google);
       email = data?.external?.email !== false;
       mailerAutoconfirm = data?.mailer_autoconfirm !== false;
+    } catch {
+      /* keep defaults */
     }
-  } catch {
-    /* keep defaults */
   }
 
-  if (!googleClientId) {
+  if (cfgRes.status === 'fulfilled' && cfgRes.value.ok) {
     try {
-      const cfgRes = await fetch(`./auth-config.json?t=${Date.now()}`, { cache: 'no-store' });
-      if (cfgRes.ok) {
-        const cfg = (await cfgRes.json()) as { googleClientId?: string };
-        if (cfg.googleClientId) googleClientId = cfg.googleClientId.trim();
-      }
+      const cfg = (await cfgRes.value.json()) as { googleClientId?: string };
+      if (cfg.googleClientId?.trim()) googleClientId = cfg.googleClientId.trim();
     } catch {
-      /* optional runtime config */
+      /* keep instant default */
     }
   }
 

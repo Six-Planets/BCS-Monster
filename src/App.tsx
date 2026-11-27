@@ -5,6 +5,7 @@ import { LoginScreen } from './components/screens/LoginScreen';
 import { AuthUser, consumeAuthRedirectHash, getStoredUser, logoutUser, subscribeUser } from './auth';
 import { flushAttempts } from './lib/api';
 import { UpdateBanner } from './components/common/UpdateBanner';
+import { AmbientSanctuary } from './components/common/AmbientSanctuary';
 import { APP_VERSION } from './lib/updater';
 import { getActiveView, navigate, useActiveView } from './router';
 import { prefetchBCSQuestionBank } from './data/questionBank';
@@ -102,8 +103,8 @@ export function App() {
 
   return (
     <div className="relative min-h-[100dvh] w-full flex flex-col justify-between">
-      {/* Persistent atmospheric background: one static fixed layer, no blur filters. */}
-      <div className="ambient-field" aria-hidden="true" />
+      {/* Persistent AAA living sanctuary background (Dawn Cloud / Midnight Aurora) */}
+      <AmbientSanctuary variant="app" />
 
       <main className="relative z-10 flex-1 w-full">
         <Suspense

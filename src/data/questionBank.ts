@@ -25,6 +25,54 @@ export interface BCSQuestionRecord {
   image: string | null;
 }
 
+export interface IndexSectionSummary {
+  topic: string;
+  marks: number | null;
+  count: number;
+  subtopics: [string, number][];
+  topTrends: [string, number][];
+}
+
+export interface IndexSubjectSummary {
+  subject: string;
+  slug: string;
+  total: number;
+  examCount: number;
+  subtopicCount: number;
+  era: [number, number, number, number];
+  sections: IndexSectionSummary[];
+}
+
+export interface IndexTrendSummary {
+  tag: string;
+  count: number;
+  recent: number;
+  latest: number;
+  examSpread: number;
+  subject: string;
+  slugs: string[];
+}
+
+export interface IndexExtraTopicSummary {
+  topic: string;
+  subject: string;
+  slug: string;
+  count: number;
+  exams: string[];
+}
+
+export interface BCSIndexDocument {
+  version: 2;
+  total: number;
+  officialTotal: number;
+  extraTotal: number;
+  examCount: number;
+  subjectSlugs: Record<string, string>;
+  subjects: IndexSubjectSummary[];
+  trends: IndexTrendSummary[];
+  extraTopics: IndexExtraTopicSummary[];
+}
+
 interface CompactCatalogEntry {
   serial: number;
   s: string;
@@ -68,6 +116,12 @@ interface CompactBankPayload {
 let cachedPromise: Promise<BCSQuestionRecord[]> | null = null;
 let cachedData: BCSQuestionRecord[] | null = null;
 
+let cachedIndexPromise: Promise<BCSIndexDocument> | null = null;
+let cachedIndex: BCSIndexDocument | null = null;
+
+const subjectPackCache = new Map<string, BCSQuestionRecord[]>();
+const subjectPackPromises = new Map<string, Promise<BCSQuestionRecord[]>>();
+
 function resolveAssetUrl(path: string): string {
   const cleanPath = path.startsWith('/') ? path.slice(1) : path;
   return `./${cleanPath}`;
@@ -86,6 +140,34 @@ if (typeof caches !== 'undefined') {
       )
     )
     .catch(() => undefined);
+}
+
+async function fetchCachedJson<T>(relativePath: string): Promise<T> {
+  const url = resolveAssetUrl(relativePath);
+  let response: Response | undefined;
+  if (typeof caches !== 'undefined') {
+    try {
+      const cache = await caches.open(DB_CACHE_NAME);
+      response = await cache.match(url);
+      if (!response) {
+        const netRes = await fetch(url);
+        if (!netRes.ok) {
+          throw new Error(`Failed to load ${relativePath} (${netRes.status})`);
+        }
+        await cache.put(url, netRes.clone());
+        response = netRes;
+      }
+    } catch {
+      response = undefined;
+    }
+  }
+  if (!response) {
+    response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to load ${relativePath} (${response.status})`);
+    }
+  }
+  return (await response.json()) as T;
 }
 
 function hydrateBank(raw: CompactBankPayload | BCSQuestionRecord[]): BCSQuestionRecord[] {
@@ -137,55 +219,87 @@ function hydrateBank(raw: CompactBankPayload | BCSQuestionRecord[]): BCSQuestion
 }
 
 /**
- * Lazily fetches and caches the 5,655-question classified BCS Preliminary database (10th–50th BCS).
- * Uses both in-memory promise caching and the browser Cache API so repeat
- * visits load from disk in milliseconds instead of re-downloading ~1.16 MB gzipped.
+ * Loads the tiny ~19.5 KB gzipped precomputed BCS syllabus & trend index.
+ * Makes Topic Master open in <30ms without downloading or parsing all 5,655 questions.
+ */
+export function loadBCSIndex(): Promise<BCSIndexDocument> {
+  if (cachedIndex) return Promise.resolve(cachedIndex);
+  if (!cachedIndexPromise) {
+    cachedIndexPromise = fetchCachedJson<BCSIndexDocument>('data/bcs_index.json')
+      .then((doc) => {
+        cachedIndex = doc;
+        return doc;
+      })
+      .catch((err) => {
+        cachedIndexPromise = null;
+        throw err;
+      });
+  }
+  return cachedIndexPromise;
+}
+
+/**
+ * Loads a single subject pack (~24–214 KB gzipped) on demand and caches it.
+ * If the full 5,655-question bank is already in memory, filters synchronously with zero network.
+ */
+export function loadSubjectPack(slug: string, subjectName?: string): Promise<BCSQuestionRecord[]> {
+  if (subjectPackCache.has(slug)) {
+    return Promise.resolve(subjectPackCache.get(slug)!);
+  }
+  if (cachedData && subjectName) {
+    const filtered = cachedData.filter((q) => q.subject === subjectName);
+    subjectPackCache.set(slug, filtered);
+    return Promise.resolve(filtered);
+  }
+  const existing = subjectPackPromises.get(slug);
+  if (existing) return existing;
+
+  const p = fetchCachedJson<CompactBankPayload>(`data/subjects/${slug}.json`)
+    .then((raw) => {
+      const hydrated = hydrateBank(raw);
+      subjectPackCache.set(slug, hydrated);
+      subjectPackPromises.delete(slug);
+      return hydrated;
+    })
+    .catch((err) => {
+      subjectPackPromises.delete(slug);
+      throw err;
+    });
+  subjectPackPromises.set(slug, p);
+  return p;
+}
+
+export async function loadSubjectPacks(slugs: string[]): Promise<BCSQuestionRecord[]> {
+  const unique = Array.from(new Set(slugs.filter(Boolean)));
+  const lists = await Promise.all(unique.map((s) => loadSubjectPack(s)));
+  return lists.flat();
+}
+
+/**
+ * Lazily fetches and caches the full 5,655-question classified BCS Preliminary database (10th–50th BCS).
  */
 export function loadBCSQuestionBank(): Promise<BCSQuestionRecord[]> {
   if (cachedData) {
     return Promise.resolve(cachedData);
   }
   if (!cachedPromise) {
-    const url = resolveAssetUrl('data/bcs_questions.json');
-    cachedPromise = (async () => {
-      let response: Response | undefined;
-      if (typeof caches !== 'undefined') {
-        try {
-          const cache = await caches.open(DB_CACHE_NAME);
-          response = await cache.match(url);
-          if (!response) {
-            const netRes = await fetch(url);
-            if (!netRes.ok) {
-              throw new Error(`Failed to load BCS database (${netRes.status})`);
-            }
-            await cache.put(url, netRes.clone());
-            response = netRes;
-          }
-        } catch {
-          response = undefined;
-        }
-      }
-      if (!response) {
-        response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`Failed to load BCS database (${response.status})`);
-        }
-      }
-      const raw = (await response.json()) as CompactBankPayload | BCSQuestionRecord[];
-      cachedData = hydrateBank(raw);
-      return cachedData;
-    })().catch((err) => {
-      cachedPromise = null;
-      throw err;
-    });
+    cachedPromise = fetchCachedJson<CompactBankPayload | BCSQuestionRecord[]>('data/bcs_questions.json')
+      .then((raw) => {
+        cachedData = hydrateBank(raw);
+        return cachedData;
+      })
+      .catch((err) => {
+        cachedPromise = null;
+        throw err;
+      });
   }
   return cachedPromise;
 }
 
 export function prefetchBCSQuestionBank(): void {
-  void loadBCSQuestionBank().catch(() => {
-    // Ignore background prefetch failures
-  });
+  // Always prefetch the tiny 19.5 KB index first so Topic Master is instant!
+  void loadBCSIndex().catch(() => undefined);
+  void loadBCSQuestionBank().catch(() => undefined);
 }
 
 /**
@@ -208,7 +322,6 @@ export function build200MockSet(
       ? [...officialEligible]
       : records.filter(isPlayable);
 
-  // Fisher-Yates shuffle on a copy
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { recordAttempt } from '../../lib/api';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
   Clock,
@@ -660,15 +659,9 @@ export const MockTestArena: React.FC<MockTestArenaProps> = ({ onBackHome }) => {
           </div>
 
           {/* Collapsible 200-Question Matrix Navigator */}
-          <AnimatePresence>
-            {showNavigator && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="overflow-hidden"
-              >
-                <div className="p-3.5 sm:p-5 rounded-2xl crystal-meta-panel space-y-3 mb-1">
+          {showNavigator && (
+            <div className="overflow-hidden screen-enter">
+              <div className="p-3.5 sm:p-5 rounded-2xl crystal-meta-panel space-y-3 mb-1">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <span className="font-rounded font-bold text-xs sm:text-sm theme-text-primary">
@@ -734,11 +727,10 @@ export const MockTestArena: React.FC<MockTestArenaProps> = ({ onBackHome }) => {
                         </button>
                       );
                     })}
-                  </div>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              </div>
+            </div>
+          )}
 
           {/* ============================================================================
               3. SEPARATE QUESTION INFORMATION SECTION (METADATA PANEL)
@@ -862,13 +854,12 @@ export const MockTestArena: React.FC<MockTestArenaProps> = ({ onBackHome }) => {
                   }
 
                   return (
-                    <motion.button
+                    <button
                       key={`${currentQuestion.id}-opt-${idx}`}
                       type="button"
                       role="radio"
                       aria-checked={isPicked}
                       data-selected={isPicked ? 'true' : 'false'}
-                      whileTap={{ scale: 0.97 }}
                       onClick={() => handleSelectOption(idx)}
                       className={`crystal-opt-base ${theme.crystalClass} ${evaluationRing} group min-h-[104px] sm:min-h-[128px] lg:min-h-[138px] p-3.5 sm:p-5 lg:p-6 rounded-[1.4rem] sm:rounded-[1.8rem] text-left flex flex-col justify-between cursor-pointer overflow-hidden focus:outline-none focus-visible:ring-4 focus-visible:ring-indigo-500`}
                     >
@@ -924,37 +915,31 @@ export const MockTestArena: React.FC<MockTestArenaProps> = ({ onBackHome }) => {
                           {opt}
                         </span>
                       </div>
-                    </motion.button>
+                    </button>
                   );
                 })}
               </div>
 
               {/* EXPLANATION PANEL (Only shown when evaluation is revealed: Review Mode or Instant Practice Mode) */}
-              <AnimatePresence mode="wait">
-                {shouldRevealEvaluation && (selectedAnswer !== null || isReviewing) && (
-                  <motion.div
-                    key={`exp-${currentQuestion.id}`}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.2 }}
-                    className={`p-4 sm:p-5 rounded-2xl border text-xs sm:text-sm font-bangla flex items-start gap-3 ${
+              {shouldRevealEvaluation && (selectedAnswer !== null || isReviewing) && (
+                <div
+                  key={`exp-${currentQuestion.id}`}
+                  className={`screen-enter p-4 sm:p-5 rounded-2xl border text-xs sm:text-sm font-bangla flex items-start gap-3 ${
+                    selectedAnswer === currentQuestion.correctIndex
+                      ? 'bg-emerald-500/15 border-emerald-400/50 theme-text-primary'
+                      : 'bg-indigo-500/15 border-indigo-400/45 theme-text-primary'
+                  }`}
+                >
+                  <CheckCircle2
+                    className={`w-5 h-5 shrink-0 mt-0.5 ${
                       selectedAnswer === currentQuestion.correctIndex
-                        ? 'bg-emerald-500/15 border-emerald-400/50 theme-text-primary'
-                        : 'bg-indigo-500/15 border-indigo-400/45 theme-text-primary'
+                        ? 'text-emerald-500'
+                        : 'text-indigo-500'
                     }`}
-                  >
-                    <CheckCircle2
-                      className={`w-5 h-5 shrink-0 mt-0.5 ${
-                        selectedAnswer === currentQuestion.correctIndex
-                          ? 'text-emerald-500'
-                          : 'text-indigo-500'
-                      }`}
-                    />
-                    <div className="leading-relaxed">{currentQuestion.explanation}</div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                  />
+                  <div className="leading-relaxed">{currentQuestion.explanation}</div>
+                </div>
+              )}
             </>
           ) : (
             /* HONEST UNLOADED QUESTION SLOT STATE (When viewing slots 11..200 of the 200-question format) */

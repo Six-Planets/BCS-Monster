@@ -232,11 +232,45 @@
   color: var(--text-muted);
 }
 
+/* Inner subcards skip nested live backdrop-filter so long scrollable lists stay locked 60/120fps. */
 .theme-subcard {
   background: var(--subcard-bg);
   border: 1.5px solid var(--subcard-border);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Sculpted Sanctuary Glass for the Cinematic Login Screen */
+.login-glass-card {
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.86) 0%, rgba(248, 245, 255, 0.80) 100%);
+  border: 1.5px solid rgba(255, 255, 255, 0.94);
+  box-shadow:
+    0 28px 64px -16px rgba(67, 56, 202, 0.22),
+    0 8px 20px -8px rgba(236, 72, 153, 0.12),
+    inset 0 2px 3px rgba(255, 255, 255, 1);
+  backdrop-filter: blur(22px) saturate(165%);
+  -webkit-backdrop-filter: blur(22px) saturate(165%);
+}
+
+html[data-theme='dark'] .login-glass-card {
+  background: linear-gradient(155deg, rgba(20, 17, 48, 0.78) 0%, rgba(14, 12, 36, 0.84) 100%);
+  border: 1.5px solid rgba(196, 181, 253, 0.24);
+  box-shadow:
+    0 32px 72px -16px rgba(0, 0, 0, 0.72),
+    0 0 42px -12px rgba(99, 102, 241, 0.28),
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.14);
+}
+
+.login-glass-pill {
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 24px -8px rgba(79, 70, 229, 0.14);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+}
+
+html[data-theme='dark'] .login-glass-pill {
+  background: rgba(20, 17, 48, 0.64);
+  border: 1px solid rgba(196, 181, 253, 0.22);
+  box-shadow: 0 10px 26px -8px rgba(0, 0, 0, 0.45);
 }
 
 /* Distinctive Section Surfaces */
