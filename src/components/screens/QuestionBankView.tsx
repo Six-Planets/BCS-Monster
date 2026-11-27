@@ -1,69 +1,51 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Search,
-  BookOpen,
   CheckCircle2,
   XCircle,
   ChevronLeft,
   ChevronRight,
-  Database,
-  Filter,
   Image as ImageIcon,
   Sparkles,
-  Layers,
-  TrendingUp,
-  BarChart3,
-  ChevronDown,
-  ChevronUp,
-  Tag,
+  BookOpenCheck,
+  GraduationCap,
+  Grid2x2,
   RotateCcw,
-  Info
+  ArrowUpRight
 } from 'lucide-react';
 import { QuestionBank3DIllustration } from '../illustrations/Magical3DIllustrations';
 import { BCSQuestionRecord, loadBCSQuestionBank } from '../../data/questionBank';
+import {
+  getSubjectTheme,
+  MasteryMap,
+  readMasteryMap,
+  saveMasteryAnswer,
+  TopicMasterIntent
+} from '../../data/syllabus';
 
 const OPTION_LETTERS = ['ক', 'খ', 'গ', 'ঘ', 'ঙ', 'চ'];
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 20;
 
-type TopicScope = 'all' | 'official' | 'extra';
-
-function countByKey(
-  items: BCSQuestionRecord[],
-  picker: (q: BCSQuestionRecord) => string
-): [string, number][] {
-  const counts = new Map<string, number>();
-  for (const item of items) {
-    const key = picker(item);
-    if (!key) continue;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+interface QuestionBankViewProps {
+  onOpenTopicMaster?: (intent?: TopicMasterIntent) => void;
 }
 
-function truncate(text: string, maxLen: number): string {
-  return text.length > maxLen ? `${text.slice(0, maxLen - 1)}…` : text;
-}
-
-export const QuestionBankView: React.FC = () => {
+export const QuestionBankView: React.FC<QuestionBankViewProps> = ({ onOpenTopicMaster }) => {
   const [questions, setQuestions] = useState<BCSQuestionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Strict 4-level filters + BPSC trend + search
   const [selectedBatch, setSelectedBatch] = useState<string>('All');
+  const [showAllBatchesGrid, setShowAllBatchesGrid] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState<string>('All');
-  const [topicScope, setTopicScope] = useState<TopicScope>('all');
-  const [selectedTopic, setSelectedTopic] = useState<string>('All');
-  const [selectedSubtopic, setSelectedSubtopic] = useState<string>('All');
-  const [selectedTrend, setSelectedTrend] = useState<string>('All');
   const [onlyWithImages, setOnlyWithImages] = useState(false);
+  const [studyMode, setStudyMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showAnalytics, setShowAnalytics] = useState(true);
   const [page, setPage] = useState(1);
 
-  // Track user's interactive practice picks per question ID
   const [pickedAnswers, setPickedAnswers] = useState<Record<number, number>>({});
   const [expandedExplanations, setExpandedExplanations] = useState<Record<number, boolean>>({});
+  const [, setMastery] = useState<MasteryMap>(() => readMasteryMap());
   const listTopRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -84,7 +66,7 @@ export const QuestionBankView: React.FC = () => {
     };
   }, []);
 
-  // 1. BCS Tomo options sorted descending (50th -> 10th)
+  // All 40 BCS batches sorted descending (50th -> 10th)
   const batchOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const q of questions) {
@@ -94,141 +76,61 @@ export const QuestionBankView: React.FC = () => {
       const numA = parseInt(a[0], 10);
       const numB = parseInt(b[0], 10);
       if (!isNaN(numA) && !isNaN(numB)) return numB - numA;
-      if (!isNaN(numA)) return -1;
-      if (!isNaN(numB)) return 1;
       return a[0].localeCompare(b[0]);
     });
   }, [questions]);
 
-  // 2. Official Subject options sorted by count
+  // Subjects scoped to the currently selected BCS batch, ordered by official syllabus serial
   const subjectOptions = useMemo(() => {
-    const counts = new Map<string, { labelBn: string; count: number }>();
-    for (const q of questions) {
-      const prev = counts.get(q.subject);
-      counts.set(q.subject, {
-        labelBn: q.subjectBn,
-        count: (prev?.count ?? 0) + 1
-      });
-    }
-    return Array.from(counts.entries()).sort((a, b) => b[1].count - a[1].count);
-  }, [questions]);
-
-  // 3. Cascading Official Syllabus Topics (filtered by selectedSubject + topicScope)
-  const topicOptions = useMemo(() => {
-    const base = questions.filter((q) => {
-      if (selectedSubject !== 'All' && q.subject !== selectedSubject) return false;
-      if (topicScope === 'official' && q.isExtraTopic) return false;
-      if (topicScope === 'extra' && !q.isExtraTopic) return false;
-      return true;
-    });
-    return countByKey(base, (q) => q.syllabusTopic);
-  }, [questions, selectedSubject, topicScope]);
-
-  // 4. Cascading Subtopics (only when a specific syllabus topic is selected)
-  const subtopicOptions = useMemo(() => {
-    if (selectedTopic === 'All') return [];
-    const base = questions.filter((q) => {
-      if (selectedSubject !== 'All' && q.subject !== selectedSubject) return false;
-      return q.syllabusTopic === selectedTopic;
-    });
-    const list = countByKey(base, (q) => q.syllabusSubtopic);
-    return list.length > 1 ? list : [];
-  }, [questions, selectedSubject, selectedTopic]);
-
-  // Top recurring BPSC Trend clusters (top 150 by frequency)
-  const trendOptions = useMemo(() => {
     const base =
-      selectedSubject === 'All'
+      selectedBatch === 'All'
         ? questions
-        : questions.filter((q) => q.subject === selectedSubject);
-    return countByKey(base, (q) => q.bpscTrendTag).slice(0, 150);
-  }, [questions, selectedSubject]);
+        : questions.filter((q) => q.bcsBatch === selectedBatch);
+    const counts = new Map<string, number>();
+    for (const q of base) {
+      counts.set(q.subject, (counts.get(q.subject) ?? 0) + 1);
+    }
+    return Array.from(counts.entries()).sort(
+      (a, b) => getSubjectTheme(a[0]).serial - getSubjectTheme(b[0]).serial
+    );
+  }, [questions, selectedBatch]);
 
-  const totalDiagramCount = useMemo(
-    () => questions.reduce((acc, q) => acc + (q.image ? 1 : 0), 0),
-    [questions]
-  );
+  const diagramCount = useMemo(() => {
+    return questions.reduce((acc, q) => {
+      if (selectedBatch !== 'All' && q.bcsBatch !== selectedBatch) return acc;
+      if (selectedSubject !== 'All' && q.subject !== selectedSubject) return acc;
+      return acc + (q.image ? 1 : 0);
+    }, 0);
+  }, [questions, selectedBatch, selectedSubject]);
 
-  // Apply all filters
   const filteredQuestions = useMemo(() => {
     const qLower = searchQuery.trim().toLowerCase();
     return questions.filter((item) => {
       if (selectedBatch !== 'All' && item.bcsBatch !== selectedBatch) return false;
       if (selectedSubject !== 'All' && item.subject !== selectedSubject) return false;
-      if (topicScope === 'official' && item.isExtraTopic) return false;
-      if (topicScope === 'extra' && !item.isExtraTopic) return false;
-      if (selectedTopic !== 'All' && item.syllabusTopic !== selectedTopic) return false;
-      if (selectedSubtopic !== 'All' && item.syllabusSubtopic !== selectedSubtopic) return false;
-      if (selectedTrend !== 'All' && item.bpscTrendTag !== selectedTrend) return false;
       if (onlyWithImages && !item.image) return false;
       if (qLower) {
         const hay =
-          `${item.question} ${item.options.join(' ')} ${item.explanation} ${item.syllabusTopic} ${item.syllabusSubtopic} ${item.bpscTrendTag} ${item.questionType} ${item.fitReason} ${item.subjectBn} ${item.bcsBatch}`.toLowerCase();
+          `${item.question} ${item.options.join(' ')} ${item.explanation} ${item.bcsBatch} ${item.subjectBn}`.toLowerCase();
         if (!hay.includes(qLower)) return false;
       }
       return true;
     });
-  }, [
-    questions,
-    selectedBatch,
-    selectedSubject,
-    topicScope,
-    selectedTopic,
-    selectedSubtopic,
-    selectedTrend,
-    onlyWithImages,
-    searchQuery
-  ]);
+  }, [questions, selectedBatch, selectedSubject, onlyWithImages, searchQuery]);
 
-  // Live analytics derived from filteredQuestions
-  const analytics = useMemo(() => {
-    let extraCount = 0;
-    let diagramCount = 0;
-    const examSet = new Set<string>();
-    const subjMap = new Map<string, { labelBn: string; count: number }>();
-    const topicMap = new Map<string, number>();
-    const trendMap = new Map<string, number>();
-
-    for (const q of filteredQuestions) {
-      if (q.isExtraTopic) extraCount += 1;
-      if (q.image) diagramCount += 1;
-      examSet.add(q.bcsBatch);
-
-      const prevSubj = subjMap.get(q.subject);
-      subjMap.set(q.subject, {
-        labelBn: q.subjectBn,
-        count: (prevSubj?.count ?? 0) + 1
-      });
-      topicMap.set(q.syllabusTopic, (topicMap.get(q.syllabusTopic) ?? 0) + 1);
-      trendMap.set(q.bpscTrendTag, (trendMap.get(q.bpscTrendTag) ?? 0) + 1);
+  // Live session score for Practice Mode
+  const sessionScore = useMemo(() => {
+    let attempted = 0;
+    let correct = 0;
+    for (const [idStr, picked] of Object.entries(pickedAnswers)) {
+      const id = Number(idStr);
+      const q = questions.find((item) => item.id === id);
+      if (!q || q.correctIndex === null) continue;
+      attempted += 1;
+      if (picked === q.correctIndex) correct += 1;
     }
-
-    const bySubject = Array.from(subjMap.entries())
-      .map(([name, meta]) => ({ key: name, label: name, sublabel: meta.labelBn, count: meta.count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 11);
-
-    const byTopic = Array.from(topicMap.entries())
-      .map(([name, count]) => ({ key: name, label: name, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 12);
-
-    const byTrend = Array.from(trendMap.entries())
-      .map(([name, count]) => ({ key: name, label: name, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 12);
-
-    return {
-      total: filteredQuestions.length,
-      exams: examSet.size,
-      official: filteredQuestions.length - extraCount,
-      extra: extraCount,
-      diagrams: diagramCount,
-      bySubject,
-      byTopic,
-      byTrend
-    };
-  }, [filteredQuestions]);
+    return { attempted, correct };
+  }, [pickedAnswers, questions]);
 
   const totalPages = Math.max(1, Math.ceil(filteredQuestions.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -237,520 +139,298 @@ export const QuestionBankView: React.FC = () => {
     return filteredQuestions.slice(start, start + PAGE_SIZE);
   }, [filteredQuestions, safePage]);
 
-  const hasActiveFilters =
+  const hasFilters =
     selectedBatch !== 'All' ||
     selectedSubject !== 'All' ||
-    topicScope !== 'all' ||
-    selectedTopic !== 'All' ||
-    selectedSubtopic !== 'All' ||
-    selectedTrend !== 'All' ||
     onlyWithImages ||
     searchQuery.trim() !== '';
 
-  const handleResetFilters = () => {
+  const handleBatchPick = (batch: string) => {
+    setSelectedBatch(batch);
+    setSelectedSubject('All');
+    setShowAllBatchesGrid(false);
+    setPage(1);
+  };
+
+  const handleReset = () => {
     setSelectedBatch('All');
     setSelectedSubject('All');
-    setTopicScope('all');
-    setSelectedTopic('All');
-    setSelectedSubtopic('All');
-    setSelectedTrend('All');
     setOnlyWithImages(false);
     setSearchQuery('');
     setPage(1);
   };
 
-  const handleSubjectChange = (nextSubject: string) => {
-    setSelectedSubject(nextSubject);
-    setSelectedTopic('All');
-    setSelectedSubtopic('All');
-    setSelectedTrend('All');
-    setPage(1);
+  const handlePickOption = (q: BCSQuestionRecord, idx: number) => {
+    setPickedAnswers((prev) => ({ ...prev, [q.id]: idx }));
+    if (q.correctIndex !== null) {
+      setMastery(saveMasteryAnswer(q.id, idx === q.correctIndex));
+    }
   };
 
-  const handleScopeChange = (nextScope: TopicScope) => {
-    setTopicScope(nextScope);
-    setSelectedTopic('All');
-    setSelectedSubtopic('All');
-    setPage(1);
-  };
-
-  const handleTopicChange = (nextTopic: string) => {
-    setSelectedTopic(nextTopic);
-    setSelectedSubtopic('All');
-    setPage(1);
-  };
-
-  const goToPage = (nextPage: number) => {
-    setPage(nextPage);
+  const goToPage = (next: number) => {
+    setPage(next);
     listTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  // Compact numbered page buttons
+  const pageNumbers = useMemo(() => {
+    const pages: number[] = [];
+    const start = Math.max(1, safePage - 2);
+    const end = Math.min(totalPages, safePage + 2);
+    for (let i = start; i <= end; i++) pages.push(i);
+    return pages;
+  }, [safePage, totalPages]);
+
   return (
-    <div className="section-card-qb rounded-[2rem] sm:rounded-[2.5rem] p-4 sm:p-7 lg:p-9 space-y-5 sm:space-y-6">
-      {/* Header */}
+    <div className="section-card-qb rounded-[2rem] sm:rounded-[2.5rem] p-4 sm:p-7 lg:p-8 space-y-5">
+      {/* Clean Airy Header */}
       <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
         <QuestionBank3DIllustration className="w-24 h-24 sm:w-28 sm:h-28 shrink-0 animate-float-gentle" />
         <div className="text-center sm:text-left space-y-1.5 flex-1">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/15 border border-sky-400/40 text-sky-800 dark:text-sky-200 font-rounded font-bold text-xs">
-            <Database className="w-3.5 h-3.5 text-sky-500" />
-            <span>
+          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/15 border border-sky-400/40 text-sky-800 dark:text-sky-200 font-rounded font-bold text-xs">
               {loading
-                ? 'Loading BCS Database...'
-                : `${questions.length.toLocaleString()} Classified Questions • 10th–50th BCS (${batchOptions.length} Exams)`}
+                ? 'Loading Question Bank...'
+                : `${questions.length.toLocaleString()} Questions • ${batchOptions.length} BCS Papers`}
             </span>
+            {sessionScore.attempted > 0 && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-emerald-800 dark:text-emerald-200 font-rounded font-bold text-xs">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                <span>
+                  {sessionScore.correct}/{sessionScore.attempted} (
+                  {Math.round((sessionScore.correct / sessionScore.attempted) * 100)}%)
+                </span>
+              </span>
+            )}
           </div>
           <h1 className="text-2xl sm:text-3xl font-rounded font-bold theme-text-primary">
-            BCS Question Bank &amp; Syllabus Explorer
+            BCS Question Bank
           </h1>
           <p className="theme-text-secondary font-bangla text-sm sm:text-base">
-            ১০ম থেকে ৫০তম বিসিএস প্রিলিমিনারি — অফিসিয়াল সিলেবাস, টপিক, সাব-টপিক ও BPSC ট্রেন্ড অ্যানালিটিক্স
+            ১০ম থেকে ৫০তম বিসিএস প্রিলিমিনারি বিগত সালের প্রশ্নপত্র ও ব্যাখ্যাসহ সমাধান
           </p>
         </div>
       </div>
 
-      {/* Live 5-KPI Summary Strip */}
+      {/* Step 1: Clean BCS Exam Paper Strip */}
       {!loading && !error && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3">
-          {[
-            {
-              label: 'Matching Questions',
-              value: analytics.total.toLocaleString(),
-              tone: 'text-sky-600 dark:text-sky-300'
-            },
-            {
-              label: 'BCS Exams',
-              value: String(analytics.exams),
-              tone: 'text-indigo-600 dark:text-indigo-300'
-            },
-            {
-              label: 'Official Syllabus',
-              value: analytics.official.toLocaleString(),
-              tone: 'text-emerald-600 dark:text-emerald-300'
-            },
-            {
-              label: '[Extra Topic]',
-              value: analytics.extra.toLocaleString(),
-              tone: 'text-amber-600 dark:text-amber-300'
-            },
-            {
-              label: 'Diagram Images',
-              value: String(analytics.diagrams),
-              tone: 'text-fuchsia-600 dark:text-fuchsia-300'
-            }
-          ].map((kpi) => (
-            <div
-              key={kpi.label}
-              className="px-3.5 py-3 rounded-2xl theme-subcard text-center sm:text-left"
+        <div className="p-3.5 sm:p-4 rounded-3xl theme-subcard space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-rounded font-bold uppercase tracking-wider theme-text-muted">
+              Select BCS Exam Paper
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowAllBatchesGrid((v) => !v)}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-sky-500/15 text-sky-700 dark:text-sky-300 font-rounded font-bold text-xs hover:bg-sky-500/25 transition-colors cursor-pointer"
             >
-              <div className={`text-xl sm:text-2xl font-rounded font-bold leading-tight ${kpi.tone}`}>
-                {kpi.value}
-              </div>
-              <div className="text-[11px] sm:text-xs font-rounded font-semibold theme-text-muted mt-0.5">
-                {kpi.label}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Strict 4-Level Hierarchical Filters & Search Bar */}
-      <div className="p-4 sm:p-5 rounded-3xl theme-subcard space-y-3.5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Level 1: BCS Tomo */}
-          <div className="space-y-1">
-            <label className="block text-[11px] font-rounded font-bold uppercase tracking-wider theme-text-muted pl-1">
-              1. BCS Tomo
-            </label>
-            <div className="relative">
-              <Filter className="w-4 h-4 theme-text-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <select
-                value={selectedBatch}
-                onChange={(e) => {
-                  setSelectedBatch(e.target.value);
-                  setPage(1);
-                }}
-                aria-label="Filter by BCS Tomo"
-                className="w-full pl-9 pr-3 py-2.5 rounded-2xl bg-white/75 dark:bg-slate-900/65 border border-slate-300/60 dark:border-slate-700/70 font-rounded font-semibold text-xs sm:text-sm theme-text-primary focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
-              >
-                <option value="All">All BCS Exams ({questions.length.toLocaleString()})</option>
-                {batchOptions.map(([batch, cnt]) => (
-                  <option key={batch} value={batch}>
-                    {batch} ({cnt})
-                  </option>
-                ))}
-              </select>
-            </div>
+              <Grid2x2 className="w-3.5 h-3.5" />
+              <span>{showAllBatchesGrid ? 'Compact Bar' : `All ${batchOptions.length} Papers`}</span>
+            </button>
           </div>
 
-          {/* Level 2: Official Subject */}
-          <div className="space-y-1">
-            <label className="block text-[11px] font-rounded font-bold uppercase tracking-wider theme-text-muted pl-1">
-              2. Official Subject
-            </label>
-            <div className="relative">
-              <BookOpen className="w-4 h-4 theme-text-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <select
-                value={selectedSubject}
-                onChange={(e) => handleSubjectChange(e.target.value)}
-                aria-label="Filter by Official Subject"
-                className="w-full pl-9 pr-3 py-2.5 rounded-2xl bg-white/75 dark:bg-slate-900/65 border border-slate-300/60 dark:border-slate-700/70 font-rounded font-semibold text-xs sm:text-sm theme-text-primary focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+          {showAllBatchesGrid ? (
+            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-8 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => handleBatchPick('All')}
+                className={`px-2.5 py-2 rounded-xl font-rounded font-bold text-xs transition-all cursor-pointer border ${
+                  selectedBatch === 'All'
+                    ? 'bg-sky-600 text-white border-sky-400 shadow-sm'
+                    : 'bg-white/65 dark:bg-slate-900/55 border-slate-300/60 dark:border-slate-700/60 theme-text-primary hover:border-sky-400'
+                }`}
               >
-                <option value="All">All Subjects ({questions.length.toLocaleString()})</option>
-                {subjectOptions.map(([subj, meta]) => (
-                  <option key={subj} value={subj}>
-                    {subj} ({meta.count})
-                  </option>
-                ))}
-              </select>
+                All
+              </button>
+              {batchOptions.map(([batch, cnt]) => {
+                const shortLabel = batch.replace(' BCS', '');
+                const active = selectedBatch === batch;
+                return (
+                  <button
+                    key={batch}
+                    type="button"
+                    onClick={() => handleBatchPick(batch)}
+                    className={`px-2 py-2 rounded-xl font-rounded font-bold text-xs transition-all cursor-pointer border flex flex-col items-center leading-tight ${
+                      active
+                        ? 'bg-sky-600 text-white border-sky-400 shadow-sm'
+                        : 'bg-white/65 dark:bg-slate-900/55 border-slate-300/60 dark:border-slate-700/60 theme-text-primary hover:border-sky-400'
+                    }`}
+                  >
+                    <span>{shortLabel}</span>
+                    <span className={`text-[10px] font-semibold ${active ? 'text-sky-100' : 'theme-text-muted'}`}>
+                      {cnt} Q
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-          </div>
-
-          {/* Level 3: Exact Syllabus Topic */}
-          <div className="space-y-1">
-            <label className="block text-[11px] font-rounded font-bold uppercase tracking-wider theme-text-muted pl-1">
-              3. Syllabus Topic
-            </label>
-            <div className="relative">
-              <Layers className="w-4 h-4 theme-text-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <select
-                value={selectedTopic}
-                onChange={(e) => handleTopicChange(e.target.value)}
-                aria-label="Filter by Official Syllabus Topic"
-                className="w-full pl-9 pr-3 py-2.5 rounded-2xl bg-white/75 dark:bg-slate-900/65 border border-slate-300/60 dark:border-slate-700/70 font-bangla font-semibold text-xs sm:text-sm theme-text-primary focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+          ) : (
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-0.5">
+              <button
+                type="button"
+                onClick={() => handleBatchPick('All')}
+                className={`shrink-0 px-3.5 py-2 rounded-2xl font-rounded font-bold text-xs transition-all cursor-pointer border ${
+                  selectedBatch === 'All'
+                    ? 'bg-sky-600 text-white border-sky-400 shadow-sm'
+                    : 'bg-white/70 dark:bg-slate-900/60 border-slate-300/60 dark:border-slate-700/60 theme-text-secondary hover:theme-text-primary'
+                }`}
               >
-                <option value="All">All Topics ({topicOptions.length})</option>
-                {topicOptions.map(([topic, cnt]) => (
-                  <option key={topic} value={topic}>
-                    {truncate(topic, 58)} ({cnt})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Level 4: BPSC Trend Cluster */}
-          <div className="space-y-1">
-            <label className="block text-[11px] font-rounded font-bold uppercase tracking-wider theme-text-muted pl-1">
-              4. BPSC Recurring Trend
-            </label>
-            <div className="relative">
-              <TrendingUp className="w-4 h-4 theme-text-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <select
-                value={selectedTrend}
-                onChange={(e) => {
-                  setSelectedTrend(e.target.value);
-                  setPage(1);
-                }}
-                aria-label="Filter by BPSC Trend Cluster"
-                className="w-full pl-9 pr-3 py-2.5 rounded-2xl bg-white/75 dark:bg-slate-900/65 border border-slate-300/60 dark:border-slate-700/70 font-rounded font-semibold text-xs sm:text-sm theme-text-primary focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
-              >
-                <option value="All">All BPSC Trends</option>
-                {trendOptions.map(([trend, cnt]) => (
-                  <option key={trend} value={trend}>
-                    {truncate(trend, 46)} ({cnt}x)
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Cascading Subtopic selector (when topic has multiple official subtopics) + Full-text Search */}
-        <div
-          className={`grid grid-cols-1 ${
-            subtopicOptions.length > 0 ? 'md:grid-cols-2' : ''
-          } gap-3`}
-        >
-          {subtopicOptions.length > 0 && (
-            <div className="relative">
-              <Tag className="w-4 h-4 theme-text-muted absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <select
-                value={selectedSubtopic}
-                onChange={(e) => {
-                  setSelectedSubtopic(e.target.value);
-                  setPage(1);
-                }}
-                aria-label="Filter by Exact Official Subtopic"
-                className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-white/75 dark:bg-slate-900/65 border border-violet-400/50 dark:border-violet-500/50 font-bangla font-semibold text-xs sm:text-sm theme-text-primary focus:outline-none focus:ring-2 focus:ring-violet-500 cursor-pointer"
-              >
-                <option value="All">All Official Subtopics ({subtopicOptions.length})</option>
-                {subtopicOptions.map(([st, cnt]) => (
-                  <option key={st} value={st}>
-                    {truncate(st, 72)} ({cnt})
-                  </option>
-                ))}
-              </select>
+                All Exams ({questions.length.toLocaleString()})
+              </button>
+              {batchOptions.map(([batch, cnt]) => {
+                const active = selectedBatch === batch;
+                return (
+                  <button
+                    key={batch}
+                    type="button"
+                    onClick={() => handleBatchPick(batch)}
+                    className={`shrink-0 px-3.5 py-2 rounded-2xl font-rounded font-bold text-xs transition-all cursor-pointer border ${
+                      active
+                        ? 'bg-sky-600 text-white border-sky-400 shadow-sm'
+                        : 'bg-white/70 dark:bg-slate-900/60 border-slate-300/60 dark:border-slate-700/60 theme-text-secondary hover:theme-text-primary'
+                    }`}
+                  >
+                    {batch} <span className="opacity-70">· {cnt}</span>
+                  </button>
+                );
+              })}
             </div>
           )}
 
-          <div className="relative">
-            <Search className="w-4 h-4 theme-text-muted absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setPage(1);
-              }}
-              placeholder="প্রশ্ন, অপশন, সিলেবাস টপিক, সাব-টপিক বা BPSC ট্রেন্ড খুঁজুন..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-white/75 dark:bg-slate-900/65 border border-slate-300/60 dark:border-slate-700/70 font-bangla text-sm theme-text-primary focus:outline-none focus:ring-2 focus:ring-sky-500"
-            />
-          </div>
-        </div>
-
-        {/* Quick Toggle Pills Row */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Syllabus Scope segmented pills */}
-            <div className="inline-flex rounded-xl p-0.5 bg-white/60 dark:bg-slate-900/60 border border-slate-300/60 dark:border-slate-700/60">
-              {(
-                [
-                  { id: 'all', label: 'All' },
-                  { id: 'official', label: 'Official Syllabus' },
-                  { id: 'extra', label: '[Extra Topics]' }
-                ] as const
-              ).map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => handleScopeChange(tab.id)}
-                  className={`px-2.5 py-1 rounded-lg font-rounded font-bold text-xs transition-all cursor-pointer ${
-                    topicScope === tab.id
-                      ? tab.id === 'extra'
-                        ? 'bg-amber-500 text-white shadow-xs'
-                        : 'bg-sky-600 text-white shadow-xs'
-                      : 'theme-text-secondary hover:theme-text-primary'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
+          {/* Subject Filter Pills (clean horizontal strip) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1 border-t border-slate-300/35 dark:border-slate-700/45">
             <button
               type="button"
               onClick={() => {
-                setOnlyWithImages((v) => !v);
+                setSelectedSubject('All');
                 setPage(1);
               }}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-rounded font-bold text-xs transition-all cursor-pointer border ${
-                onlyWithImages
-                  ? 'bg-fuchsia-600 text-white border-fuchsia-400 shadow-sm'
-                  : 'bg-white/60 dark:bg-slate-800/60 border-slate-300/60 dark:border-slate-700/60 theme-text-secondary'
+              className={`shrink-0 px-3 py-1.5 rounded-xl font-rounded font-bold text-xs transition-all cursor-pointer ${
+                selectedSubject === 'All'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-white/55 dark:bg-slate-900/50 theme-text-secondary hover:theme-text-primary'
               }`}
             >
-              <ImageIcon className="w-3.5 h-3.5" />
-              <span>Diagrams ({totalDiagramCount})</span>
+              All Subjects
             </button>
+            {subjectOptions.map(([subj, cnt]) => {
+              const theme = getSubjectTheme(subj);
+              const active = selectedSubject === subj;
+              return (
+                <button
+                  key={subj}
+                  type="button"
+                  onClick={() => {
+                    setSelectedSubject(active ? 'All' : subj);
+                    setPage(1);
+                  }}
+                  className={`shrink-0 px-3 py-1.5 rounded-xl font-rounded font-bold text-xs transition-all cursor-pointer ${
+                    active
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'bg-white/55 dark:bg-slate-900/50 theme-text-secondary hover:theme-text-primary'
+                  }`}
+                >
+                  {theme.shortEn} <span className="opacity-70">({cnt})</span>
+                </button>
+              );
+            })}
+          </div>
 
-            <button
-              type="button"
-              onClick={() => setShowAnalytics((v) => !v)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-rounded font-bold text-xs transition-all cursor-pointer border ${
-                showAnalytics
-                  ? 'bg-indigo-600 text-white border-indigo-400 shadow-sm'
-                  : 'bg-white/60 dark:bg-slate-800/60 border-slate-300/60 dark:border-slate-700/60 theme-text-secondary'
-              }`}
-            >
-              <BarChart3 className="w-3.5 h-3.5" />
-              <span>Analytics Charts</span>
-              {showAnalytics ? (
-                <ChevronUp className="w-3.5 h-3.5" />
-              ) : (
-                <ChevronDown className="w-3.5 h-3.5" />
-              )}
-            </button>
+          {/* Search + Practice/Study Mode + Diagrams */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-1">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 theme-text-muted absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="প্রশ্ন, অপশন বা ব্যাখ্যা খুঁজুন..."
+                className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-white/80 dark:bg-slate-900/70 border border-slate-300/60 dark:border-slate-700/70 font-bangla text-sm theme-text-primary focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
 
-            {hasActiveFilters && (
+            <div className="flex items-center justify-between sm:justify-end gap-2 flex-wrap">
+              {/* Practice vs Study mode */}
+              <div className="inline-flex rounded-xl p-0.5 bg-white/70 dark:bg-slate-900/65 border border-slate-300/60 dark:border-slate-700/60">
+                <button
+                  type="button"
+                  onClick={() => setStudyMode(false)}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-rounded font-bold text-xs cursor-pointer transition-all ${
+                    !studyMode
+                      ? 'bg-sky-600 text-white shadow-xs'
+                      : 'theme-text-secondary hover:theme-text-primary'
+                  }`}
+                >
+                  <GraduationCap className="w-3.5 h-3.5" />
+                  <span>Practice</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStudyMode(true)}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-rounded font-bold text-xs cursor-pointer transition-all ${
+                    studyMode
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'theme-text-secondary hover:theme-text-primary'
+                  }`}
+                >
+                  <BookOpenCheck className="w-3.5 h-3.5" />
+                  <span>Study</span>
+                </button>
+              </div>
+
               <button
                 type="button"
-                onClick={handleResetFilters}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-500/15 text-rose-700 dark:text-rose-300 font-rounded font-bold text-xs cursor-pointer hover:bg-rose-500/25 transition-colors"
+                onClick={() => {
+                  setOnlyWithImages((v) => !v);
+                  setPage(1);
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-rounded font-bold text-xs transition-all cursor-pointer border ${
+                  onlyWithImages
+                    ? 'bg-fuchsia-600 text-white border-fuchsia-400 shadow-xs'
+                    : 'bg-white/70 dark:bg-slate-900/60 border-slate-300/60 dark:border-slate-700/60 theme-text-secondary'
+                }`}
               >
-                <RotateCcw className="w-3 h-3" />
-                <span>Reset</span>
+                <ImageIcon className="w-3.5 h-3.5" />
+                <span>Diagrams ({diagramCount})</span>
               </button>
-            )}
-          </div>
 
-          <span className="font-rounded font-semibold text-xs theme-text-secondary">
-            Showing {filteredQuestions.length.toLocaleString()} matching • Page {safePage} / {totalPages}
-          </span>
-        </div>
-      </div>
-
-      {/* Live Interactive Visual Analytics Charts */}
-      {!loading && !error && showAnalytics && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5">
-          {/* Chart 1: Official Subject */}
-          <div className="p-4 rounded-3xl theme-subcard space-y-3 max-h-[320px] overflow-y-auto">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="font-rounded font-bold text-sm text-sky-700 dark:text-sky-300 flex items-center gap-1.5">
-                <BookOpen className="w-4 h-4 shrink-0" />
-                <span>By Official Subject</span>
-              </h3>
-              <span className="text-[11px] font-rounded theme-text-muted">Click bar to filter</span>
-            </div>
-            <div className="space-y-2">
-              {analytics.bySubject.map((row) => {
-                const maxVal = analytics.bySubject[0]?.count || 1;
-                const pct = Math.max(4, Math.round((row.count / maxVal) * 100));
-                const isActive = selectedSubject === row.key;
-                return (
-                  <button
-                    key={row.key}
-                    type="button"
-                    onClick={() => handleSubjectChange(isActive ? 'All' : row.key)}
-                    className={`w-full text-left group rounded-xl p-1.5 -mx-1.5 transition-colors cursor-pointer ${
-                      isActive
-                        ? 'bg-sky-500/15 ring-1 ring-sky-400/50'
-                        : 'hover:bg-slate-500/10'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2 text-xs mb-1">
-                      <span className="font-rounded font-semibold theme-text-primary truncate">
-                        {row.label}
-                      </span>
-                      <strong className="font-rounded text-sky-700 dark:text-sky-300 shrink-0">
-                        {row.count.toLocaleString()}
-                      </strong>
-                    </div>
-                    <div className="h-2 rounded-full bg-slate-400/20 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 transition-all"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </button>
-                );
-              })}
-              {analytics.bySubject.length === 0 && (
-                <p className="text-xs font-rounded theme-text-muted">No matching data</p>
-              )}
-            </div>
-          </div>
-
-          {/* Chart 2: Top Official Syllabus Topics (or Extra Topics) */}
-          <div className="p-4 rounded-3xl theme-subcard space-y-3 max-h-[320px] overflow-y-auto">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="font-rounded font-bold text-sm text-violet-700 dark:text-violet-300 flex items-center gap-1.5">
-                <Layers className="w-4 h-4 shrink-0" />
-                <span>
-                  {topicScope === 'extra' ? 'Top [Extra Topics]' : 'Top Syllabus Topics'}
-                </span>
-              </h3>
-              <span className="text-[11px] font-rounded theme-text-muted">Click bar to filter</span>
-            </div>
-            <div className="space-y-2">
-              {analytics.byTopic.map((row) => {
-                const maxVal = analytics.byTopic[0]?.count || 1;
-                const pct = Math.max(4, Math.round((row.count / maxVal) * 100));
-                const isActive = selectedTopic === row.key;
-                const isExtraRow = row.key.startsWith('[Extra Topic]');
-                return (
-                  <button
-                    key={row.key}
-                    type="button"
-                    onClick={() => handleTopicChange(isActive ? 'All' : row.key)}
-                    className={`w-full text-left group rounded-xl p-1.5 -mx-1.5 transition-colors cursor-pointer ${
-                      isActive
-                        ? 'bg-violet-500/15 ring-1 ring-violet-400/50'
-                        : 'hover:bg-slate-500/10'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2 text-xs mb-1">
-                      <span className="font-bangla font-semibold theme-text-primary truncate">
-                        {row.label}
-                      </span>
-                      <strong
-                        className={`font-rounded shrink-0 ${
-                          isExtraRow
-                            ? 'text-amber-600 dark:text-amber-300'
-                            : 'text-violet-700 dark:text-violet-300'
-                        }`}
-                      >
-                        {row.count.toLocaleString()}
-                      </strong>
-                    </div>
-                    <div className="h-2 rounded-full bg-slate-400/20 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${
-                          isExtraRow
-                            ? 'bg-gradient-to-r from-amber-500 to-rose-500'
-                            : 'bg-gradient-to-r from-violet-500 to-fuchsia-500'
-                        }`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </button>
-                );
-              })}
-              {analytics.byTopic.length === 0 && (
-                <p className="text-xs font-rounded theme-text-muted">No matching data</p>
-              )}
-            </div>
-          </div>
-
-          {/* Chart 3: Top BPSC Recurring Trends */}
-          <div className="p-4 rounded-3xl theme-subcard space-y-3 max-h-[320px] overflow-y-auto">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="font-rounded font-bold text-sm text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
-                <TrendingUp className="w-4 h-4 shrink-0" />
-                <span>Top BPSC Recurring Trends</span>
-              </h3>
-              <span className="text-[11px] font-rounded theme-text-muted">Click bar to filter</span>
-            </div>
-            <div className="space-y-2">
-              {analytics.byTrend.map((row) => {
-                const maxVal = analytics.byTrend[0]?.count || 1;
-                const pct = Math.max(4, Math.round((row.count / maxVal) * 100));
-                const isActive = selectedTrend === row.key;
-                return (
-                  <button
-                    key={row.key}
-                    type="button"
-                    onClick={() => {
-                      setSelectedTrend(isActive ? 'All' : row.key);
-                      setPage(1);
-                    }}
-                    className={`w-full text-left group rounded-xl p-1.5 -mx-1.5 transition-colors cursor-pointer ${
-                      isActive
-                        ? 'bg-emerald-500/15 ring-1 ring-emerald-400/50'
-                        : 'hover:bg-slate-500/10'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2 text-xs mb-1">
-                      <span className="font-rounded font-semibold theme-text-primary truncate">
-                        {row.label}
-                      </span>
-                      <strong className="font-rounded text-emerald-700 dark:text-emerald-300 shrink-0">
-                        {row.count}x
-                      </strong>
-                    </div>
-                    <div className="h-2 rounded-full bg-slate-400/20 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </button>
-                );
-              })}
-              {analytics.byTrend.length === 0 && (
-                <p className="text-xs font-rounded theme-text-muted">No matching data</p>
+              {hasFilters && (
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-rose-500/15 text-rose-700 dark:text-rose-300 font-rounded font-bold text-xs cursor-pointer hover:bg-rose-500/25 transition-colors"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Reset</span>
+                </button>
               )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Anchor for pagination scroll */}
-      <div ref={listTopRef} />
+      {/* Results meta strip */}
+      <div ref={listTopRef} className="flex items-center justify-between gap-2 px-1">
+        <p className="font-rounded font-bold text-xs sm:text-sm theme-text-secondary">
+          {selectedBatch === 'All' ? 'All 10th–50th BCS' : selectedBatch}
+          {selectedSubject !== 'All' ? ` • ${getSubjectTheme(selectedSubject).shortEn}` : ''}
+          {' — '}
+          <span className="theme-text-primary">{filteredQuestions.length.toLocaleString()} questions</span>
+        </p>
+        {totalPages > 1 && (
+          <span className="font-rounded font-semibold text-xs theme-text-muted">
+            Page {safePage} / {totalPages}
+          </span>
+        )}
+      </div>
 
-      {/* Loading / Error / Empty States */}
+      {/* Loading / Error / Empty */}
       {loading && (
         <div className="p-10 rounded-3xl theme-subcard text-center font-rounded font-bold theme-text-secondary">
-          Loading 5,655 classified BCS Preliminary questions (10th–50th BCS)...
+          Loading 5,655 BCS Preliminary questions...
         </div>
       )}
 
@@ -764,80 +444,76 @@ export const QuestionBankView: React.FC = () => {
         <div className="p-10 rounded-3xl theme-subcard text-center space-y-2">
           <p className="font-rounded font-bold theme-text-primary">No matching questions found</p>
           <p className="font-bangla text-sm theme-text-secondary">
-            অন্য কোনো বিসিএস ব্যাচ, বিষয়, সিলেবাস টপিক বা কীওয়ার্ড দিয়ে আবার চেষ্টা করুন।
+            অন্য কোনো বিসিএস ব্যাচ, বিষয় বা কীওয়ার্ড দিয়ে চেষ্টা করুন।
           </p>
         </div>
       )}
 
-      {/* Question Cards List */}
+      {/* Clean, Spacious Question Cards */}
       {!loading && !error && pageItems.length > 0 && (
         <div className="space-y-4">
           {pageItems.map((q) => {
             const picked = pickedAnswers[q.id];
             const isPicked = picked !== undefined;
-            const showExp = expandedExplanations[q.id] || isPicked;
+            const reveal = studyMode || isPicked || Boolean(expandedExplanations[q.id]);
+            const subjTheme = getSubjectTheme(q.subject);
 
             return (
               <article
                 key={q.id}
-                className="p-4 sm:p-6 rounded-3xl theme-subcard space-y-3.5 shadow-sm"
+                className="p-4 sm:p-6 rounded-3xl theme-subcard space-y-4 shadow-sm"
               >
-                {/* Strict 4-Level Metadata Badges */}
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                {/* Minimal 3-pill header */}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="px-2.5 py-0.5 rounded-full bg-indigo-600 text-white font-rounded font-bold text-xs">
                       {q.bcsBatch}
-                      {q.questionNumber ? ` • Q${q.questionNumber}` : ` • #${q.id}`}
-                    </span>
-                    <span className="px-2.5 py-0.5 rounded-full bg-sky-500/15 border border-sky-400/40 text-sky-900 dark:text-sky-200 font-rounded font-bold text-xs">
-                      {q.subject}
+                      {q.questionNumber ? ` • Q${q.questionNumber}` : ''}
                     </span>
                     <span
-                      className={`px-2.5 py-0.5 rounded-full border font-bangla font-bold text-xs ${
-                        q.isExtraTopic
-                          ? 'bg-amber-500/20 border-amber-400/50 text-amber-900 dark:text-amber-200'
-                          : 'bg-violet-500/15 border-violet-400/40 text-violet-900 dark:text-violet-200'
-                      }`}
+                      className={`px-2.5 py-0.5 rounded-full border font-rounded font-bold text-xs ${subjTheme.badgeBg}`}
                     >
-                      {truncate(q.syllabusTopic, 52)}
+                      {subjTheme.shortEn}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedTrend(selectedTrend === q.bpscTrendTag ? 'All' : q.bpscTrendTag);
-                        setPage(1);
-                      }}
-                      title="Filter questions with this BPSC trend"
-                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-emerald-900 dark:text-emerald-200 font-rounded font-bold text-[11px] hover:bg-emerald-500/25 transition-colors cursor-pointer"
-                    >
-                      <TrendingUp className="w-3 h-3 shrink-0" />
-                      <span>
-                        {q.bpscTrendTag} ({q.sameTypeCount}x)
-                      </span>
-                    </button>
-                    <span className="px-2 py-0.5 rounded-full bg-slate-500/12 theme-text-muted font-rounded font-semibold text-[11px]">
-                      {q.questionType}
-                    </span>
+                    {onOpenTopicMaster && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onOpenTopicMaster({
+                            tab: q.isExtraTopic ? 'extra' : 'syllabus',
+                            subject: q.subject,
+                            topic: q.syllabusTopic
+                          })
+                        }
+                        title="Explore this topic in Topic Master"
+                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/65 dark:bg-slate-900/60 border border-slate-300/60 dark:border-slate-700/70 theme-text-secondary hover:text-indigo-600 dark:hover:text-indigo-300 font-bangla font-semibold text-xs transition-colors cursor-pointer"
+                      >
+                        <span className="max-w-[200px] truncate">{q.syllabusTopic}</span>
+                        <ArrowUpRight className="w-3 h-3 shrink-0 opacity-70" />
+                      </button>
+                    )}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setExpandedExplanations((prev) => ({ ...prev, [q.id]: !prev[q.id] }))
-                    }
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-violet-500/15 text-violet-700 dark:text-violet-300 font-rounded font-bold text-xs cursor-pointer hover:bg-violet-500/25 transition-colors shrink-0"
-                  >
-                    <Sparkles className="w-3 h-3" />
-                    <span>{showExp ? 'Hide Details' : 'Show Answer'}</span>
-                  </button>
+                  {!studyMode && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedExplanations((prev) => ({ ...prev, [q.id]: !prev[q.id] }))
+                      }
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-sky-500/15 text-sky-700 dark:text-sky-300 font-rounded font-bold text-xs cursor-pointer hover:bg-sky-500/25 transition-colors"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>{reveal ? 'Hide' : 'Answer'}</span>
+                    </button>
+                  )}
                 </div>
 
-                {/* Question text */}
+                {/* Question Stem */}
                 <h2 className="font-bangla font-bold text-base sm:text-lg theme-text-primary leading-relaxed">
                   {q.question}
                 </h2>
 
-                {/* Cropped diagram image if present */}
+                {/* Diagram image */}
                 {q.image && (
                   <div className="p-3 rounded-2xl bg-white/95 dark:bg-slate-950/75 border border-slate-300/60 dark:border-slate-700/70 inline-block max-w-full">
                     <img
@@ -849,15 +525,14 @@ export const QuestionBankView: React.FC = () => {
                   </div>
                 )}
 
-                {/* Options Grid */}
+                {/* 2x2 Options Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {q.options.map((opt, idx) => {
                     const isThisPicked = picked === idx;
                     const isCorrectOpt = q.correctIndex === idx;
-                    const reveal = isPicked || showExp;
 
                     let cardCls =
-                      'bg-white/65 dark:bg-slate-900/55 border-slate-300/60 dark:border-slate-700/70 theme-text-primary hover:border-sky-400';
+                      'bg-white/70 dark:bg-slate-900/55 border-slate-300/60 dark:border-slate-700/70 theme-text-primary hover:border-sky-400';
                     if (reveal && isCorrectOpt) {
                       cardCls =
                         'bg-emerald-500/20 border-emerald-500 text-emerald-950 dark:text-emerald-100';
@@ -869,12 +544,7 @@ export const QuestionBankView: React.FC = () => {
                       <button
                         key={idx}
                         type="button"
-                        onClick={() =>
-                          setPickedAnswers((prev) => ({
-                            ...prev,
-                            [q.id]: idx
-                          }))
-                        }
+                        onClick={() => handlePickOption(q, idx)}
                         className={`p-3 rounded-2xl border text-left flex items-center justify-between gap-2.5 transition-all cursor-pointer ${cardCls}`}
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
@@ -896,38 +566,15 @@ export const QuestionBankView: React.FC = () => {
                   })}
                 </div>
 
-                {/* Syllabus Alignment + Fit Reason + Explanation */}
-                {showExp && (
-                  <div className="p-3.5 sm:p-4 rounded-2xl bg-indigo-500/10 border border-indigo-400/30 text-xs sm:text-sm theme-text-secondary leading-relaxed space-y-2">
+                {/* Clean Explanation Drawer */}
+                {reveal && (q.explanation || q.correctAnswerRaw) && (
+                  <div className="p-3.5 sm:p-4 rounded-2xl bg-sky-500/10 border border-sky-400/30 font-bangla text-xs sm:text-sm theme-text-secondary leading-relaxed space-y-1.5">
                     {q.correctIndex === null && q.correctAnswerRaw && (
-                      <div className="font-bangla font-bold text-emerald-700 dark:text-emerald-300">
+                      <div className="font-bold text-emerald-700 dark:text-emerald-300">
                         উত্তর: {q.correctAnswerRaw}
                       </div>
                     )}
-
-                    <div className="space-y-1">
-                      <div className="font-bangla">
-                        <span className="font-rounded font-bold theme-text-primary">
-                          Official Subtopic:{' '}
-                        </span>
-                        <span>{q.syllabusSubtopic}</span>
-                      </div>
-                      {q.fitReason && (
-                        <div className="flex items-start gap-1.5 font-rounded text-xs theme-text-muted">
-                          <Info className="w-3.5 h-3.5 text-sky-500 shrink-0 mt-0.5" />
-                          <span>
-                            <strong className="theme-text-secondary">Syllabus Fit:</strong>{' '}
-                            {q.fitReason}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {q.explanation && (
-                      <div className="pt-2 border-t border-indigo-400/20 font-bangla theme-text-primary/90 whitespace-pre-line">
-                        {q.explanation}
-                      </div>
-                    )}
+                    {q.explanation && <div className="whitespace-pre-line">{q.explanation}</div>}
                   </div>
                 )}
               </article>
@@ -936,28 +583,41 @@ export const QuestionBankView: React.FC = () => {
         </div>
       )}
 
-      {/* Pagination Controls */}
+      {/* Clean Numbered Pagination */}
       {!loading && totalPages > 1 && (
-        <div className="flex items-center justify-between gap-3 pt-2">
+        <div className="flex items-center justify-between gap-2 pt-2">
           <button
             type="button"
             onClick={() => goToPage(Math.max(1, safePage - 1))}
             disabled={safePage <= 1}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl theme-subcard font-rounded font-bold text-sm theme-text-primary disabled:opacity-40 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl theme-subcard font-rounded font-bold text-xs sm:text-sm theme-text-primary disabled:opacity-40 cursor-pointer"
           >
             <ChevronLeft className="w-4 h-4" />
-            <span>Previous</span>
+            <span>Prev</span>
           </button>
 
-          <span className="font-rounded font-bold text-xs sm:text-sm theme-text-secondary">
-            Page {safePage} of {totalPages}
-          </span>
+          <div className="flex items-center gap-1.5">
+            {pageNumbers.map((num) => (
+              <button
+                key={num}
+                type="button"
+                onClick={() => goToPage(num)}
+                className={`w-9 h-9 rounded-xl font-rounded font-bold text-xs transition-all cursor-pointer ${
+                  num === safePage
+                    ? 'bg-sky-600 text-white shadow-sm'
+                    : 'theme-subcard theme-text-secondary hover:theme-text-primary'
+                }`}
+              >
+                {num}
+              </button>
+            ))}
+          </div>
 
           <button
             type="button"
             onClick={() => goToPage(Math.min(totalPages, safePage + 1))}
             disabled={safePage >= totalPages}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-600 text-white font-rounded font-bold text-sm shadow-md disabled:opacity-40 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-600 text-white font-rounded font-bold text-xs sm:text-sm shadow-md disabled:opacity-40 cursor-pointer"
           >
             <span>Next</span>
             <ChevronRight className="w-4 h-4" />

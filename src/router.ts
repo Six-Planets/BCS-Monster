@@ -9,6 +9,7 @@ const HASH_BY_VIEW: Record<ActiveView, string> = {
   home: '#/',
   'mock-test': '#/mock-test',
   'question-bank': '#/question-bank',
+  'topic-master': '#/topic-master',
   'study-materials': '#/study-materials',
   'private-tutor': '#/private-tutor',
   'bcs-updates': '#/bcs-updates',

@@ -3,6 +3,7 @@ import { Play } from 'lucide-react';
 import {
   MockTestHeroIllustration,
   QuestionBank3DIllustration,
+  TopicMaster3DIllustration,
   StudyMaterials3DIllustration,
   PrivateTutor3DIllustration,
   BCSUpdates3DIllustration
@@ -15,6 +16,7 @@ import type { ActiveView } from './DestinationViews';
 /* Static SVG art never changes: memoise so it is reconciled exactly once. */
 const MockArt = React.memo(MockTestHeroIllustration);
 const QuestionBankArt = React.memo(QuestionBank3DIllustration);
+const TopicMasterArt = React.memo(TopicMaster3DIllustration);
 const StudyMaterialsArt = React.memo(StudyMaterials3DIllustration);
 const PrivateTutorArt = React.memo(PrivateTutor3DIllustration);
 const BCSUpdatesArt = React.memo(BCSUpdates3DIllustration);
@@ -24,6 +26,7 @@ interface FeatureCardProps {
   onOpen: (view: ActiveView) => void;
   title: string;
   subtitle: string;
+  badge?: string;
   cardClass: string;
   spanClass: string;
   paddingClass: string;
@@ -41,6 +44,7 @@ const FeatureCard = React.memo<FeatureCardProps>(
     onOpen,
     title,
     subtitle,
+    badge,
     cardClass,
     spanClass,
     paddingClass,
@@ -59,14 +63,19 @@ const FeatureCard = React.memo<FeatureCardProps>(
         className={`pointer-events-none absolute ${glowPosition} rounded-full glow-orb ${glowClass} group-hover:scale-110 transition-transform duration-500`}
       />
 
-      <div className="relative z-10 space-y-0.5 sm:space-y-1 text-center sm:text-left order-2 sm:order-1">
+      <div className="relative z-10 space-y-1 text-center sm:text-left order-2 sm:order-1">
+        {badge && (
+          <span className="inline-block px-2.5 py-0.5 rounded-full bg-white/65 dark:bg-slate-900/55 border border-white/80 dark:border-white/15 font-rounded font-bold text-[10px] tracking-wide uppercase theme-text-secondary">
+            {badge}
+          </span>
+        )}
         <h2
-          className={`text-base sm:text-[1.6rem] font-rounded font-bold theme-text-primary ${hoverTitleClass} transition-colors leading-tight`}
+          className={`text-base sm:text-[1.45rem] font-rounded font-bold theme-text-primary ${hoverTitleClass} transition-colors leading-tight`}
         >
           {title}
         </h2>
         <p
-          className={`text-[11px] sm:text-base font-bangla theme-text-secondary ${textClass} leading-snug line-clamp-2`}
+          className={`text-[11px] sm:text-sm font-bangla theme-text-secondary ${textClass} leading-snug line-clamp-2`}
         >
           {subtitle}
         </p>
@@ -147,36 +156,55 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({ onOpen }) => 
         </div>
       </section>
 
-      {/* SECTIONS 4-7: Question Bank → Study Materials → Private Tutor → BCS Updates */}
+      {/* CORE STUDY ARENAS: Question Bank & Topic Master (Dedicated Separate Sections) */}
       <div className="grid grid-cols-2 md:grid-cols-12 gap-3 sm:gap-3.5">
         <FeatureCard
           view="question-bank"
           onOpen={onOpen}
+          badge="10th–50th BCS"
           title="Question Bank"
-          subtitle="১০ম–৫০তম বিসিএস প্রশ্নব্যাংক, সিলেবাস ও ট্রেন্ড অ্যানালিটিক্স"
+          subtitle="বিগত ৪০টি বিসিএস-এর ৫,৬৫৫টি প্রশ্ন ও সমাধান"
           cardClass="section-card-qb"
-          spanClass="col-span-1 md:col-span-7"
-          paddingClass="p-3.5 sm:px-7 sm:py-4"
+          spanClass="col-span-1 md:col-span-6"
+          paddingClass="p-3.5 sm:px-6 sm:py-5"
           hoverTitleClass="group-hover:text-sky-600 dark:group-hover:text-sky-300"
           glowPosition="-right-8 -bottom-8 w-52 h-52"
           glowClass="bg-gradient-to-tl from-sky-400/45 via-cyan-300/35 to-transparent"
           textClass="max-w-xs"
           floatVariant="reverse"
-          art={<QuestionBankArt className="w-20 h-20 sm:w-32 sm:h-28" />}
+          art={<QuestionBankArt className="w-20 h-20 sm:w-28 sm:h-24" />}
         />
+        <FeatureCard
+          view="topic-master"
+          onOpen={onOpen}
+          badge="Syllabus & Trends"
+          title="Topic Master"
+          subtitle="অফিশিয়াল সিলেবাস, সাব-টপিক ও BPSC পুনরাবৃত্তি ট্রেন্ড"
+          cardClass="section-card-tm"
+          spanClass="col-span-1 md:col-span-6"
+          paddingClass="p-3.5 sm:px-6 sm:py-5"
+          hoverTitleClass="group-hover:text-indigo-600 dark:group-hover:text-indigo-300"
+          glowPosition="-right-8 -top-8 w-52 h-52"
+          glowClass="bg-gradient-to-bl from-indigo-400/45 via-fuchsia-300/35 to-transparent"
+          textClass="max-w-xs"
+          floatVariant="gentle"
+          art={<TopicMasterArt className="w-20 h-20 sm:w-28 sm:h-24" />}
+        />
+
+        {/* SUPPORTING SECTIONS: Study Materials, Private Tutor, BCS Updates */}
         <FeatureCard
           view="study-materials"
           onOpen={onOpen}
           title="Study Materials"
           subtitle="রঙিন নোটস ও সহজ রিভিশন গাইড"
           cardClass="section-card-sm"
-          spanClass="col-span-1 md:col-span-5"
-          paddingClass="p-3.5 sm:px-6 sm:py-4"
+          spanClass="col-span-1 md:col-span-4"
+          paddingClass="p-3.5 sm:px-5 sm:py-4"
           hoverTitleClass="group-hover:text-emerald-600 dark:group-hover:text-emerald-300"
-          glowPosition="-right-8 -top-8 w-48 h-48"
+          glowPosition="-right-8 -top-8 w-44 h-44"
           glowClass="bg-gradient-to-bl from-emerald-400/45 via-teal-300/35 to-transparent"
           floatVariant="gentle"
-          art={<StudyMaterialsArt className="w-20 h-20 sm:w-30 sm:h-28" />}
+          art={<StudyMaterialsArt className="w-18 h-18 sm:w-24 sm:h-24" />}
         />
         <FeatureCard
           view="private-tutor"
@@ -184,13 +212,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({ onOpen }) => 
           title="Private Tutor"
           subtitle="যেকোনো প্রশ্ন ও ধারণা সহজে বুঝে নিন"
           cardClass="section-card-pt"
-          spanClass="col-span-1 md:col-span-5"
-          paddingClass="p-3.5 sm:px-6 sm:py-4"
+          spanClass="col-span-1 md:col-span-4"
+          paddingClass="p-3.5 sm:px-5 sm:py-4"
           hoverTitleClass="group-hover:text-purple-600 dark:group-hover:text-purple-300"
-          glowPosition="-left-8 -bottom-8 w-48 h-48"
+          glowPosition="-left-8 -bottom-8 w-44 h-44"
           glowClass="bg-gradient-to-tr from-purple-400/45 via-fuchsia-300/35 to-transparent"
           floatVariant="reverse"
-          art={<PrivateTutorArt className="w-20 h-20 sm:w-30 sm:h-28" />}
+          art={<PrivateTutorArt className="w-18 h-18 sm:w-24 sm:h-24" />}
         />
         <FeatureCard
           view="bcs-updates"
@@ -198,18 +226,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({ onOpen }) => 
           title="BCS Updates"
           subtitle="বিজ্ঞপ্তি, পরীক্ষার সময়সূচি ও নোটিশ"
           cardClass="section-card-up"
-          spanClass="col-span-1 md:col-span-7"
-          paddingClass="p-3.5 sm:px-7 sm:py-4"
+          spanClass="col-span-2 md:col-span-4"
+          paddingClass="p-3.5 sm:px-5 sm:py-4"
           hoverTitleClass="group-hover:text-orange-600 dark:group-hover:text-orange-300"
-          glowPosition="-right-8 -bottom-8 w-52 h-52"
+          glowPosition="-right-8 -bottom-8 w-48 h-48"
           glowClass="bg-gradient-to-tl from-orange-400/45 via-rose-300/35 to-transparent"
           textClass="max-w-xs"
           floatVariant="gentle"
-          art={<BCSUpdatesArt className="w-20 h-20 sm:w-32 sm:h-28" />}
+          art={<BCSUpdatesArt className="w-18 h-18 sm:w-24 sm:h-24" />}
         />
       </div>
     </div>
   );
 });
 HomeScreen.displayName = 'HomeScreen';
-

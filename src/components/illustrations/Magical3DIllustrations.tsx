@@ -775,4 +775,96 @@ export const BCSCountdown3DIllustration: React.FC<{ className?: string }> = ({
   </svg>
 );
 
+/* ============================================================================
+   07. TOPIC MASTER — 3D CRYSTAL SYLLABUS COMPASS & KNOWLEDGE CONSTELLATION
+   ============================================================================ */
+export const TopicMaster3DIllustration: React.FC<{ className?: string }> = ({
+  className = 'w-32 h-32'
+}) => (
+  <svg viewBox="0 0 240 210" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <defs>
+      <radialGradient id="tmAura" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stopColor="#E0E7FF" stopOpacity="0.9" />
+        <stop offset="55%" stopColor="#C4B5FD" stopOpacity="0.4" />
+        <stop offset="100%" stopColor="#FBCFE8" stopOpacity="0" />
+      </radialGradient>
+      <linearGradient id="tmRing" x1="30" y1="25" x2="210" y2="185" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#818CF8" />
+        <stop offset="52%" stopColor="#6366F1" />
+        <stop offset="100%" stopColor="#EC4899" />
+      </linearGradient>
+      <linearGradient id="tmCore" x1="65" y1="55" x2="175" y2="160" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#FFFFFF" />
+        <stop offset="65%" stopColor="#EEF2FF" />
+        <stop offset="100%" stopColor="#C7D2FE" />
+      </linearGradient>
+      <linearGradient id="tmGold" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#FEF08A" />
+        <stop offset="50%" stopColor="#F59E0B" />
+        <stop offset="100%" stopColor="#EA580C" />
+      </linearGradient>
+      <linearGradient id="tmAqua" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#67E8F9" />
+        <stop offset="100%" stopColor="#0EA5E9" />
+      </linearGradient>
+      <linearGradient id="tmRose" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#F9A8D4" />
+        <stop offset="100%" stopColor="#EC4899" />
+      </linearGradient>
+      <linearGradient id="tmMint" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#6EE7B7" />
+        <stop offset="100%" stopColor="#10B981" />
+      </linearGradient>
+    </defs>
+
+    <circle cx="120" cy="102" r="90" fill="url(#tmAura)" />
+    <ellipse cx="120" cy="182" rx="68" ry="11" fill="#4338CA" fillOpacity="0.18" />
+
+    {/* Orbiting Syllabus Constellation Ring */}
+    <ellipse
+      cx="120"
+      cy="104"
+      rx="82"
+      ry="34"
+      transform="rotate(-18 120 104)"
+      stroke="url(#tmRing)"
+      strokeWidth="6"
+      strokeDasharray="10 8"
+      opacity="0.55"
+    />
+
+    {/* Central 3D Syllabus Target Emblem */}
+    <circle cx="120" cy="102" r="62" fill="url(#tmRing)" />
+    <circle cx="120" cy="102" r="51" fill="url(#tmCore)" stroke="#FFFFFF" strokeWidth="2.5" />
+    <circle cx="120" cy="102" r="35" stroke="#818CF8" strokeWidth="5" strokeDasharray="140 44" strokeLinecap="round" />
+    <circle cx="120" cy="102" r="20" fill="url(#tmRing)" opacity="0.16" />
+
+    {/* 3D Compass Needle / Star Core */}
+    <polygon points="120,64 131,93 158,102 131,111 120,140 109,111 82,102 109,93" fill="url(#tmGold)" stroke="#FFFFFF" strokeWidth="2" />
+    <circle cx="120" cy="102" r="8" fill="#FFFFFF" />
+    <circle cx="120" cy="102" r="4" fill="#6366F1" />
+
+    {/* Orbiting Topic Nodes (4 colorful pills/orbs) */}
+    <g transform="translate(36, 48)">
+      <circle cx="16" cy="16" r="16" fill="url(#tmAqua)" stroke="#FFFFFF" strokeWidth="2.5" />
+      <path d="M 10 16 L 14 20 L 22 12" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+    </g>
+    <g transform="translate(174, 34)">
+      <circle cx="15" cy="15" r="15" fill="url(#tmRose)" stroke="#FFFFFF" strokeWidth="2.5" />
+      <polygon points="15,8 17,13 22,13 18,16 19,21 15,18 11,21 12,16 8,13 13,13" fill="#FEF08A" />
+    </g>
+    <g transform="translate(176, 128)">
+      <circle cx="16" cy="16" r="16" fill="url(#tmMint)" stroke="#FFFFFF" strokeWidth="2.5" />
+      <path d="M 11 19 L 15 13 L 18 16 L 22 11" stroke="#FFFFFF" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+    </g>
+    <g transform="translate(32, 134)">
+      <rect x="0" y="0" width="54" height="26" rx="13" fill="url(#tmGold)" stroke="#FFFFFF" strokeWidth="2" />
+      <text x="27" y="17" textAnchor="middle" fill="#FFFFFF" fontSize="11" fontWeight="800" fontFamily="Fredoka, sans-serif">
+        200M
+      </text>
+    </g>
+  </svg>
+);
+
+
 

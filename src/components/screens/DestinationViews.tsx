@@ -8,12 +8,16 @@ import {
 } from '../illustrations/Magical3DIllustrations';
 import { MockTestArena } from './MockTestArena';
 import { QuestionBankView } from './QuestionBankView';
+import { TopicMasterView } from './TopicMasterView';
+import { navigate } from '../../router';
+import { setTopicMasterIntent, TopicMasterIntent } from '../../data/syllabus';
 import type { AuthUser } from '../../auth';
 
 export type ActiveView =
   | 'home'
   | 'mock-test'
   | 'question-bank'
+  | 'topic-master'
   | 'study-materials'
   | 'private-tutor'
   | 'bcs-updates'
@@ -41,14 +45,19 @@ export const DestinationView: React.FC<DestinationViewProps> = ({
     return <MockTestArena onBackHome={onBackHome} />;
   }
 
+  const handleJumpToTopicMaster = (intent?: TopicMasterIntent) => {
+    setTopicMasterIntent(intent ?? null);
+    navigate('topic-master');
+  };
+
   return (
     <div
       className={`w-full ${
-        view === 'question-bank' ? 'max-w-6xl' : 'max-w-4xl'
-      } mx-auto px-4 sm:px-6 pt-6 sm:pt-10 pb-12 sm:pb-16`}
+        view === 'question-bank' || view === 'topic-master' ? 'max-w-5xl' : 'max-w-4xl'
+      } mx-auto px-4 sm:px-6 pt-5 sm:pt-8 pb-10 sm:pb-14`}
     >
       {/* Top Floating Back Pill */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-5 flex items-center justify-between gap-3">
         <button
           onClick={onBackHome}
           className="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full section-card-branding theme-text-primary font-rounded font-bold text-sm hover:scale-105 active:scale-95 transition-transform cursor-pointer"
@@ -56,10 +65,37 @@ export const DestinationView: React.FC<DestinationViewProps> = ({
           <ArrowLeft className="w-4 h-4 text-indigo-500" />
           <span>Back to Arena</span>
         </button>
+
+        {view === 'question-bank' && (
+          <button
+            type="button"
+            onClick={() => handleJumpToTopicMaster()}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full section-card-tm theme-text-primary font-rounded font-bold text-xs sm:text-sm hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+          >
+            <span>Topic Master</span>
+            <span aria-hidden="true">→</span>
+          </button>
+        )}
+
+        {view === 'topic-master' && (
+          <button
+            type="button"
+            onClick={() => navigate('question-bank')}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full section-card-qb theme-text-primary font-rounded font-bold text-xs sm:text-sm hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+          >
+            <span>Question Bank</span>
+            <span aria-hidden="true">→</span>
+          </button>
+        )}
       </div>
 
       {/* 02. QUESTION BANK DESTINATION */}
-      {view === 'question-bank' && <QuestionBankView />}
+      {view === 'question-bank' && (
+        <QuestionBankView onOpenTopicMaster={handleJumpToTopicMaster} />
+      )}
+
+      {/* 02B. TOPIC MASTER DESTINATION */}
+      {view === 'topic-master' && <TopicMasterView />}
 
       {/* 03. STUDY MATERIALS DESTINATION */}
       {view === 'study-materials' && (

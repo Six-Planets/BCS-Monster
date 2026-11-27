@@ -47,6 +47,13 @@
       0 20px 44px -12px rgba(2, 132, 199, 0.22),
       inset 0 2px 3px 0 rgba(255, 255, 255, 0.96);
 
+    /* 02B. Topic Master (Indigo, Periwinkle & Rose-Gold Crystal) */
+    --card-tm-bg: linear-gradient(135deg, rgba(228, 233, 255, 0.90) 0%, rgba(240, 234, 255, 0.84) 52%, rgba(255, 234, 246, 0.88) 100%);
+    --card-tm-border: rgba(99, 102, 241, 0.45);
+    --card-tm-shadow:
+      0 20px 44px -12px rgba(79, 70, 229, 0.22),
+      inset 0 2px 3px 0 rgba(255, 255, 255, 0.96);
+
     /* 03. Study Materials (Mint Emerald & Aqua Jade) */
     --card-sm-bg: linear-gradient(135deg, rgba(209, 250, 229, 0.88) 0%, rgba(230, 255, 245, 0.82) 55%, rgba(204, 251, 241, 0.88) 100%);
     --card-sm-border: rgba(16, 185, 129, 0.45);
@@ -118,12 +125,20 @@
       0 0 40px -10px rgba(168, 85, 247, 0.38),
       inset 0 2px 3px 0 rgba(255, 255, 255, 0.25);
 
-    /* 02. Question Bank (Dark Mode â€” Turquoise & Sky Blue) */
+    /* 02. Question Bank (Dark Mode — Turquoise & Sky Blue) */
     --card-qb-bg: linear-gradient(135deg, rgba(14, 58, 94, 0.82) 0%, rgba(19, 48, 89, 0.76) 55%, rgba(30, 41, 99, 0.82) 100%);
     --card-qb-border: rgba(56, 189, 248, 0.50);
     --card-qb-shadow:
       0 22px 48px -12px rgba(0, 0, 0, 0.65),
       0 0 28px -8px rgba(14, 165, 233, 0.32),
+      inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.22);
+
+    /* 02B. Topic Master (Dark Mode — Royal Indigo & Rose Violet) */
+    --card-tm-bg: linear-gradient(135deg, rgba(35, 36, 102, 0.84) 0%, rgba(52, 32, 100, 0.78) 52%, rgba(74, 28, 86, 0.82) 100%);
+    --card-tm-border: rgba(129, 140, 248, 0.52);
+    --card-tm-shadow:
+      0 22px 48px -12px rgba(0, 0, 0, 0.65),
+      0 0 28px -8px rgba(99, 102, 241, 0.34),
       inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.22);
 
     /* 03. Study Materials (Dark Mode â€” Emerald & Mint) */
@@ -256,6 +271,22 @@
   box-shadow: var(--card-qb-shadow);
   backdrop-filter: blur(14px) saturate(150%);
   -webkit-backdrop-filter: blur(14px) saturate(150%);
+}
+
+.section-card-tm {
+  background: var(--card-tm-bg);
+  border: 1.5px solid var(--card-tm-border);
+  box-shadow: var(--card-tm-shadow);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 .section-card-sm {

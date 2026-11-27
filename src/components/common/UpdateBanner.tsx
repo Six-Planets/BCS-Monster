@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Download, RefreshCw, X } from 'lucide-react';
 import { applyUpdate, useUpdateCheck } from '../../lib/updater';
 
-/** Floating "Update available" prompt (website + Android app). */
+/** Floating seamless "Update available" prompt (website + Android app). */
 export const UpdateBanner: React.FC = () => {
   const [info, dismiss] = useUpdateCheck();
   const [busy, setBusy] = useState(false);
@@ -16,14 +16,16 @@ export const UpdateBanner: React.FC = () => {
       className="fixed z-[100] left-1/2 -translate-x-1/2 bottom-[calc(env(safe-area-inset-bottom)+1rem)] w-[calc(100%-1.5rem)] max-w-md rounded-3xl section-card-branding shadow-2xl p-4 flex items-center gap-3"
     >
       <div className="w-10 h-10 shrink-0 rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 flex items-center justify-center text-white">
-        {isApk ? <Download className="w-5 h-5" /> : <RefreshCw className="w-5 h-5" />}
+        {isApk ? <Download className="w-5 h-5" /> : <RefreshCw className={`w-5 h-5 ${busy ? 'animate-spin' : ''}`} />}
       </div>
       <div className="flex-1 min-w-0">
         <p className="font-rounded font-extrabold text-sm theme-text-primary">
-          {isApk ? 'New app version available' : 'Update available'}
+          {isApk ? `New app update v${info.version}` : `Update ready (v${info.version})`}
         </p>
         <p className="font-rounded text-xs theme-text-secondary truncate">
-          {isApk ? `Version ${info.version} — download and install` : `Version ${info.version} is ready`}
+          {isApk
+            ? `v${info.currentVersion} → v${info.version} · tap to download & install`
+            : `v${info.currentVersion} → v${info.version} · quick ~1.5 MB update`}
         </p>
       </div>
       <button
@@ -36,7 +38,7 @@ export const UpdateBanner: React.FC = () => {
         }}
         className="shrink-0 px-4 py-2 rounded-2xl bg-indigo-600 text-white font-rounded font-bold text-xs hover:bg-indigo-500 active:scale-95 transition cursor-pointer disabled:opacity-70"
       >
-        {busy ? 'Updating…' : isApk ? 'Download' : 'Update now'}
+        {busy ? 'Updating…' : isApk ? 'Download' : 'Update'}
       </button>
       <button
         type="button"

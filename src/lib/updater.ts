@@ -1,8 +1,8 @@
 /**
  * Update checker shared by the website and the Android app.
- *  - Website / app web layer: a new release on the server → "Update available" → reload into it.
+ *  - Website / app web layer: a new release on the server → "Update available" → seamless in-app refresh into it.
  *  - Android native shell: if the server says a newer APK exists (native.code higher than the
- *    one baked into this APK's user agent), offer to download it.
+ *    one baked into this APK's user agent), offer to download and install it.
  */
 import { useEffect, useState } from 'react';
 
@@ -16,8 +16,8 @@ interface RemoteVersion {
 }
 
 export type UpdateInfo =
-  | { kind: 'web'; version: string }
-  | { kind: 'apk'; version: string; url: string };
+  | { kind: 'web'; version: string; currentVersion: string }
+  | { kind: 'apk'; version: string; currentVersion: string; url: string };
 
 export function nativeCode(): number | null {
   const m = typeof navigator !== 'undefined' ? navigator.userAgent.match(UA_TAG) : null;
@@ -37,17 +37,39 @@ export async function checkForUpdate(): Promise<UpdateInfo | null> {
   const installed = nativeCode();
   if (installed !== null && remote.native?.code && remote.native.code > installed && remote.native.apk) {
     const file = remote.native.apk.split('/').pop();
-    return { kind: 'apk', version: remote.native.version || remote.version, url: `${DOWNLOAD_HOST}/bcs/${file}` };
+    return {
+      kind: 'apk',
+      version: remote.native.version || remote.version,
+      currentVersion: APP_VERSION,
+      url: `${DOWNLOAD_HOST}/bcs/${file}`
+    };
   }
-  if (remote.version && remote.version !== APP_VERSION) return { kind: 'web', version: remote.version };
+  if (remote.version && remote.version !== APP_VERSION) {
+    return { kind: 'web', version: remote.version, currentVersion: APP_VERSION };
+  }
   return null;
 }
 
+/**
+ * Seamlessly pulls the newest web bundle (clearing stale app-shell caches and updating SW)
+ * or opens the APK download when a native update is available.
+ */
 export async function applyUpdate(u: UpdateInfo): Promise<void> {
   if (u.kind === 'apk') {
-    // Different host → Capacitor hands it to the system browser, which downloads and offers to install.
     window.location.href = u.url;
     return;
+  }
+  try {
+    if (typeof caches !== 'undefined') {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter((k) => k.startsWith('bcs-monster-shell-') || k.startsWith('bcs-monster-db-'))
+          .map((k) => caches.delete(k))
+      );
+    }
+  } catch {
+    /* ignore cache clear failures */
   }
   try {
     const reg = await navigator.serviceWorker?.getRegistration();
@@ -55,12 +77,14 @@ export async function applyUpdate(u: UpdateInfo): Promise<void> {
   } catch {
     /* no service worker */
   }
-  window.location.reload();
+  const url = new URL(window.location.href);
+  url.searchParams.set('_u', u.version);
+  window.location.replace(url.toString());
 }
 
 const SNOOZE_KEY = 'bcs-monster-update-snooze';
 
-/** React hook: polls on start, every 10 minutes, and whenever the app comes back to the foreground. */
+/** React hook: polls on start, every 5 minutes, and whenever the app returns to foreground. */
 export function useUpdateCheck(): [UpdateInfo | null, () => void] {
   const [info, setInfo] = useState<UpdateInfo | null>(null);
   useEffect(() => {
@@ -76,8 +100,8 @@ export function useUpdateCheck(): [UpdateInfo | null, () => void] {
       }
       if (snoozed !== `${u.kind}:${u.version}`) setInfo(u);
     };
-    const first = window.setTimeout(run, 4000);
-    const every = window.setInterval(run, 10 * 60 * 1000);
+    const first = window.setTimeout(run, 2500);
+    const every = window.setInterval(run, 5 * 60 * 1000);
     const onVis = () => {
       if (document.visibilityState === 'visible') void run();
     };

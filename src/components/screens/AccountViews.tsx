@@ -12,7 +12,7 @@ import {
   pendingAttempts,
   updateProfile
 } from '../../lib/api';
-import { APP_VERSION } from '../../lib/updater';
+import { APP_VERSION, applyUpdate, checkForUpdate, UpdateInfo } from '../../lib/updater';
 
 /* ---------------------------------------------------------------- helpers */
 function useLoad<T>(fn: () => Promise<T>): { data: T | null; error: string | null; loading: boolean; reload: () => void } {
@@ -236,7 +236,8 @@ export const SettingsView: React.FC<{ currentUser?: AuthUser | null }> = ({ curr
   const [name, setName] = useState(currentUser?.displayName ?? '');
   const [pw, setPw] = useState('');
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [busy, setBusy] = useState<'name' | 'pw' | null>(null);
+  const [busy, setBusy] = useState<'name' | 'pw' | 'update' | null>(null);
+  const [updateFound, setUpdateFound] = useState<UpdateInfo | null>(null);
 
   useEffect(() => {
     getProfile()
@@ -353,7 +354,42 @@ export const SettingsView: React.FC<{ currentUser?: AuthUser | null }> = ({ curr
             {msg.ok && <Check className="w-4 h-4" />} {msg.text}
           </div>
         )}
-        <p className="text-center text-[11px] font-rounded theme-text-muted">BCS Monster v{APP_VERSION}</p>
+
+        <div className="p-4 sm:p-5 rounded-3xl theme-subcard flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-rounded font-bold text-sm theme-text-primary">App Version</p>
+            <p className="font-rounded text-xs theme-text-muted">BCS Monster v{APP_VERSION}</p>
+          </div>
+          {updateFound ? (
+            <button
+              type="button"
+              onClick={() => void applyUpdate(updateFound)}
+              className="px-4 py-2 rounded-2xl bg-emerald-600 text-white font-rounded font-bold text-xs cursor-pointer shadow-sm"
+            >
+              Update to v{updateFound.version}
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={async () => {
+                setBusy('update');
+                const found = await checkForUpdate();
+                setBusy(null);
+                if (found) {
+                  setUpdateFound(found);
+                  setMsg({ ok: true, text: `Update v${found.version} is ready! Tap Update to install.` });
+                } else {
+                  setMsg({ ok: true, text: `You are on the latest version (v${APP_VERSION}).` });
+                }
+              }}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-indigo-500/15 text-indigo-700 dark:text-indigo-200 font-rounded font-bold text-xs cursor-pointer hover:bg-indigo-500/25 disabled:opacity-60"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${busy === 'update' ? 'animate-spin' : ''}`} />
+              <span>{busy === 'update' ? 'Checking…' : 'Check for Updates'}</span>
+            </button>
+          )}
+        </div>
       </div>
     </Card>
   );

@@ -26,6 +26,7 @@ import {
   verifySignupCode
 } from '../../auth';
 import type { AuthServerSettings } from '../../lib/api';
+import { APP_VERSION } from '../../lib/updater';
 
 interface LoginScreenProps {
   onLoginSuccess: (user: AuthUser) => void;
@@ -622,6 +623,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             </div>
           )}
         </form>
+
+        <p className="text-center text-[10px] font-rounded tracking-wide theme-text-muted/80 pt-1">
+          BCS Monster v{APP_VERSION}
+        </p>
       </div>
     </div>
   );

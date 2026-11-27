@@ -5,6 +5,7 @@ import { LoginScreen } from './components/screens/LoginScreen';
 import { AuthUser, consumeAuthRedirectHash, getStoredUser, logoutUser, subscribeUser } from './auth';
 import { flushAttempts } from './lib/api';
 import { UpdateBanner } from './components/common/UpdateBanner';
+import { APP_VERSION } from './lib/updater';
 import { getActiveView, navigate, useActiveView } from './router';
 import { prefetchBCSQuestionBank } from './data/questionBank';
 
@@ -129,6 +130,15 @@ export function App() {
           )}
         </Suspense>
       </main>
+
+      {/* Subtle version tag on every page */}
+      <footer
+        className={`relative z-10 w-full text-center font-rounded text-[10px] tracking-wide theme-text-muted/80 select-none ${
+          isHome ? 'pb-24 sm:pb-28 -mt-20 sm:-mt-24 pointer-events-none' : 'pb-5 pt-1'
+        }`}
+      >
+        BCS Monster v{APP_VERSION}
+      </footer>
 
       {/* Homepage 5-item floating bottom navigation: visible ONLY on the homepage. */}
       {isHome && (
