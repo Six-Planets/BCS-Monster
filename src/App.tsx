@@ -39,7 +39,7 @@ export function App() {
     if (currentUser) void flushAttempts();
   }, [currentUser]);
 
-  // Idle-prefetch the 3,080-question bank once signed in so Mock Test & Question Bank open instantly.
+  // Idle-prefetch the 5,655-question classified bank once signed in so Mock Test & Question Bank open instantly.
   useEffect(() => {
     if (!currentUser) return;
     const win = window as Window & {

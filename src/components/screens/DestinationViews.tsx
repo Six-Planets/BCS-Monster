@@ -42,7 +42,11 @@ export const DestinationView: React.FC<DestinationViewProps> = ({
   }
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 pt-6 sm:pt-10 pb-12 sm:pb-16">
+    <div
+      className={`w-full ${
+        view === 'question-bank' ? 'max-w-6xl' : 'max-w-4xl'
+      } mx-auto px-4 sm:px-6 pt-6 sm:pt-10 pb-12 sm:pb-16`}
+    >
       {/* Top Floating Back Pill */}
       <div className="mb-6 flex items-center justify-between">
         <button

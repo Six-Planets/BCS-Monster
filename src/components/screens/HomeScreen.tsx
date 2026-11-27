@@ -153,7 +153,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = React.memo(({ onOpen }) => 
           view="question-bank"
           onOpen={onOpen}
           title="Question Bank"
-          subtitle="বিগত বিসিএস ও বিষয়ভিত্তিক প্রশ্নের ভাণ্ডার"
+          subtitle="১০ম–৫০তম বিসিএস প্রশ্নব্যাংক, সিলেবাস ও ট্রেন্ড অ্যানালিটিক্স"
           cardClass="section-card-qb"
           spanClass="col-span-1 md:col-span-7"
           paddingClass="p-3.5 sm:px-7 sm:py-4"

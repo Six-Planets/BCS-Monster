@@ -252,7 +252,7 @@ interface MockTestArenaProps {
 }
 
 export const MockTestArena: React.FC<MockTestArenaProps> = ({ onBackHome }) => {
-  // Full 200-question BCS Preliminary set (starts with curated fallback, upgrades immediately from 3,080-Q DB)
+  // Full 200-question BCS Preliminary set (starts with curated fallback, upgrades immediately from 5,655-Q DB)
   const [examQuestions, setExamQuestions] = useState<MockQuestion[]>(MOCK_QUESTIONS);
   const [allBankRecords, setAllBankRecords] = useState<BCSQuestionRecord[] | null>(null);
   // 0-indexed slot in the 200-question BCS Preliminary exam (0..199)
@@ -268,7 +268,7 @@ export const MockTestArena: React.FC<MockTestArenaProps> = ({ onBackHome }) => {
   const [navigatorRange, setNavigatorRange] = useState<0 | 1 | 2 | 3>(0); // 0: 1-50, 1: 51-100, 2: 101-150, 3: 151-200
   const [remainingSeconds, setRemainingSeconds] = useState(BCS_PRELIM_DURATION_SECONDS);
 
-  // Load the 3,080-question BCS Preliminary database and populate all 200 mock slots
+  // Load the 5,655-question BCS Preliminary database and populate all 200 mock slots
   useEffect(() => {
     let active = true;
     loadBCSQuestionBank()
@@ -281,6 +281,7 @@ export const MockTestArena: React.FC<MockTestArenaProps> = ({ onBackHome }) => {
             bcsBatch: r.bcsBatch,
             subject: r.subject,
             subjectBn: r.subjectBn,
+            topic: r.syllabusTopic,
             question: r.question,
             options: r.options as [string, string, string, string],
             correctIndex: r.correctIndex ?? 0,
@@ -367,6 +368,7 @@ export const MockTestArena: React.FC<MockTestArenaProps> = ({ onBackHome }) => {
           bcsBatch: r.bcsBatch,
           subject: r.subject,
           subjectBn: r.subjectBn,
+          topic: r.syllabusTopic,
           question: r.question,
           options: r.options as [string, string, string, string],
           correctIndex: r.correctIndex ?? 0,
